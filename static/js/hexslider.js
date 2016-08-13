@@ -43,6 +43,7 @@ window.addEventListener("optimizedResize", onResize);
 
 
 function init() {
+    "use strict";
     lcanvas = document.getElementById("left");
     rcanvas = document.getElementById("right");
     lctx = lcanvas.getContext("2d");
@@ -59,6 +60,7 @@ function init() {
 
 
 function init_player(p) {
+    "use strict";
     p.x = -50
     p.y = 0
     p.radius = 10;
@@ -67,24 +69,43 @@ function init_player(p) {
 
 
 function renderBG(x, y, context) {
+    "use strict";
     var a;
+    var w;
+    var r = 500
+    var s = 288.675;
+    context.save()
     context.beginPath()
-    for (a = -500; a <= 500; a += 50) {
-        context.moveTo(-500, a);
-        context.lineTo( 500, a);
-        context.moveTo(a, -500);
-        context.lineTo(a,  500);
+    for (a = -r; a <= r; a += 50) {
+        w = (r - Math.abs(a)) / r * s + s;
+        context.moveTo(-w, a);
+        context.lineTo( w, a);
+    }
+    context.rotate(Math.PI / 3);
+    for (a = -r; a <= r; a += 50) {
+        w = (r - Math.abs(a)) / r * s + s;
+        context.moveTo(-w, a);
+        context.lineTo( w, a);
+    }
+    context.rotate(Math.PI / 3);
+    for (a = -r; a <= r; a += 50) {
+        w = (r - Math.abs(a)) / r * s + s;
+        context.moveTo(-w, a);
+        context.lineTo( w, a);
     }
     context.stroke();
+    context.restore();
 }
 
 function renderPlayer(player, context) {
+    "use strict";
     context.beginPath()
     context.arc(player.x, player.y, player.radius, 0, 2 * Math.PI, false);
     context.stroke();
 }
 
 function renderClear() {
+    "use strict";
     lctx.resetTransform();
     rctx.resetTransform();
 
@@ -95,6 +116,7 @@ function renderClear() {
 }
 
 function setupTransform(x, y, ctx) {
+    "use strict";
     //center view
     ctx.scale(1, -1);
     ctx.translate(lcanvas.width / 2, 0);
@@ -105,6 +127,7 @@ function setupTransform(x, y, ctx) {
 }
 
 function renderGame() {
+    "use strict";
     renderClear();
     setupTransform(p1.x, p1.y, lctx);
     setupTransform(p2.x, p2.y, rctx);
@@ -131,6 +154,7 @@ function renderGame() {
 }
 
 function main(timestamp) {
+    "use strict";
     if (time_old === -1) {
         console.log("resetting time_old");
         time_old = timestamp;
