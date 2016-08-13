@@ -8,6 +8,8 @@ const e = 100; //triangle height; should evenly divide `r`
                //note: this is not triangle edge length.
 const s = r * Math.tan(Math.PI/6); //half of a side length
 
+var tracking = false;
+
 var time_old = -1;
 
 var p1 = {};
@@ -126,8 +128,10 @@ function setupTransform(player, ctx) {
     ctx.translate(lcanvas.width / 2, -lcanvas.height / 2);
 
     //track the player
-    //var pos = player.getPos();
-    //ctx.translate(-pos.x, -pos.y);
+    if (tracking) {
+        var pos = player.getPos(player.pos);
+        ctx.translate(-pos.x, -pos.y);
+    }
 }
 
 function renderBG(context) {
@@ -208,10 +212,16 @@ function step(time = 50) {
 
 function event_keydown(event) {
     "use strict";
+
+    //`t` toggles view tracking
+    if (event.keyCode === 84) {
+        tracking = !tracking;
+    }
+
     //a=65; d=68; <=37; >=39;
     //p1 turns left by pressing 'a'
 
-    if (event.keyCode === 65) {
+    else if (event.keyCode === 65) {
         var numSegments = Math.round(p1.path.length / (2 * s / (r / e)));
         var nextIntersection = Math.ceil(p1.pos * numSegments) / numSegments;
         p1.nextTurn = nextIntersection;
@@ -219,7 +229,7 @@ function event_keydown(event) {
         p1.nextPos = calcPos(p1, nextIntersection, p1.nextPath);
     }
     //p1 turns right by pressing 'd'
-    if (event.keyCode === 68) {
+    else if (event.keyCode === 68) {
         var numSegments = Math.round(p1.path.length / (2 * s / (r / e)));
         var nextIntersection = Math.ceil(p1.pos * numSegments) / numSegments;
         p1.nextTurn = nextIntersection;
@@ -227,7 +237,7 @@ function event_keydown(event) {
         p1.nextPos = calcPos(p1, nextIntersection, p1.nextPath);
     }
     //p2 turns left by pressing <left-arrow>
-    if (event.keyCode === 37) {
+    else if (event.keyCode === 37) {
         var numSegments = Math.round(p2.path.length / (2 * s / (r / e)));
         var nextIntersection = Math.ceil(p2.pos * numSegments) / numSegments;
         p2.nextTurn = nextIntersection;
@@ -235,7 +245,7 @@ function event_keydown(event) {
         p2.nextPos = calcPos(p2, nextIntersection, p2.nextPath);
     }
     //p2 turns right by pressing <right-arrow>
-    if (event.keyCode === 39) {
+    else if (event.keyCode === 39) {
         var numSegments = Math.round(p2.path.length / (2 * s / (r / e)));
         var nextIntersection = Math.ceil(p2.pos * numSegments) / numSegments;
         p2.nextTurn = nextIntersection;
