@@ -3,9 +3,10 @@ var rcanvas;
 var lctx;
 var rctx;
 
-var r = 500; //inscribed radius
-var s = r * Math.tan(Math.PI/6); //half of a side length
-var e = 100; //triangle edge length;
+const r = 200; //inscribed radius
+const e = 100; //triangle height; should evenly divide `r`
+               //note: this is not triangle edge length.
+const s = r * Math.tan(Math.PI/6); //half of a side length
 
 var time_old = -1;
 
@@ -58,6 +59,8 @@ function init() {
     p1.pos = 0.3;
     p2.pos = 0.7;
 
+    window.onkeydown = event_keydown;
+
     onResize();
 
     requestAnimationFrame(main);
@@ -92,35 +95,12 @@ function Player() {
     this.radius = 10;
     this.speed = 0.1;
     this.path = new Line(-2 * s, 0, 2 * s, 0);
+    this.nextTurn = 2; 
     this.nextPath = null;
     this.getPos = function() {
         // start + pos(end - start)
         return this.path.start.plus(this.path.end.minus(this.path.start).scale(this.pos));
     };
-}
-
-function wrapUniverse(p) {
-    var st = Math.sin(Math.PI / 3); //sin theta
-    var ct = Math.cos(Math.PI / 3); //cos theta
-    var tempx;
-    var tempy;
-    var i;
-
-    for (i = 0; i < 3; i += 1) {    
-        if (p.y > r) {
-            p.y -= r * 2;
-        } else if (p.y < -r) {
-            p.y += r * 2;
-        }
-        tempx = p.x * ct - p.y * st;
-        tempy = p.x * st + p.y * ct;
-        p.x = tempx;
-        p.y = tempy;
-    }
-    p.x = -p.x;
-    p.y = -p.y;
-
-    renderGame();
 }
 
 function setupTransform(player, ctx) {
@@ -129,9 +109,9 @@ function setupTransform(player, ctx) {
     ctx.scale(1, -1);
     ctx.translate(lcanvas.width / 2, -lcanvas.height / 2);
 
-    //offset by playerPos
-    var pos = player.getPos();
-    ctx.translate(-pos.x, -pos.y);
+    //track the player
+    //var pos = player.getPos();
+    //ctx.translate(-pos.x, -pos.y);
 }
 
 function renderBG(context) {
@@ -210,9 +190,53 @@ function step(time = 50) {
     main(time_old + time);
 }
 
+function event_keydown(event) {
+    "use strict";
+    //a=65; d=68; <=37; >=39;
+    //p1 turns left by pressing 'a'
+    if (event.keyCode === 65) {
+        var numSegments = Math.round(p1.path.length / s);
+        var nextIntersection = Math.ceil(p1.pos * numSegments) / numSegments;
+        p1.nextTurn = nextIntersection;
+        p1.nextPath = p1.path;
+        p1.nextPos = p1.pos;
+    }
+    //p1 turns right by pressing 'd'
+    if (event.keyCode === 68) {
+        var numSegments = Math.round(p1.path.length / s);
+        var nextIntersection = Math.ceil(p1.pos * numSegments) / numSegments;
+        p1.nextTurn = nextIntersection;
+        p1.nextPath = p1.path;
+        p1.nextPos = p1.pos;
+    }
+}
+
+function test_turn() {
+    console.log("----- test turn -----");
+    var numSegments = Math.round(p1.path.length / s);
+    var nextIntersection = Math.ceil(p1.pos * numSegments) / numSegments;
+    console.log("p1 pos: " + p1.pos);
+    console.log("p1 has " + numSegments + " segments.")
+    console.log("p1 will turn at " + nextIntersection + ".");
+}
+
 function physics(delta) {
+    "use strict";
+    //move forward
     p1.pos += (p1.speed / p1.path.length) * delta;
     p2.pos += (p2.speed / p2.path.length) * delta;
+
+    //turn
+    if (p1.pos > p1.nextTurn) {
+        console.log("turning");
+        var overshot = p1.pos - p1.nextTurn;
+        p1.path = p1.nextPath;
+        p1.pos = p1.nextPos;
+
+        p1.nextPath = null;
+        p1.nextTurn = 2;
+        p1.nextPos = 0;
+    }
 
     //cheesy wrap around
     p1.pos -= Math.floor(p1.pos);
