@@ -56,8 +56,9 @@ function init() {
 
     p1 = new Player();
     p2 = new Player();
-    p1.pos = 0.3;
-    p2.pos = 0.7;
+    p1.pos = 0.1;
+    p2.pos = 0.1;
+    p2.path.reverse();
 
     window.onkeydown = event_keydown;
 
@@ -227,15 +228,15 @@ function event_keydown(event) {
     }
     //p2 turns left by pressing <left-arrow>
     if (event.keyCode === 37) {
-        var numSegments = Math.round(p1.path.length / (2 * s / (r / e)));
-        var nextIntersection = Math.ceil(p1.pos * numSegments) / numSegments;
+        var numSegments = Math.round(p2.path.length / (2 * s / (r / e)));
+        var nextIntersection = Math.ceil(p2.pos * numSegments) / numSegments;
         p2.nextTurn = nextIntersection;
         p2.nextPath = calcTurn(p2, nextIntersection, "left");
         p2.nextPos = calcPos(p2, nextIntersection, p2.nextPath);
     }
     //p2 turns right by pressing <right-arrow>
     if (event.keyCode === 39) {
-        var numSegments = Math.round(p1.path.length / (2 * s / (r / e)));
+        var numSegments = Math.round(p2.path.length / (2 * s / (r / e)));
         var nextIntersection = Math.ceil(p2.pos * numSegments) / numSegments;
         p2.nextTurn = nextIntersection;
         p2.nextPath = calcTurn(p2, nextIntersection, "right");
