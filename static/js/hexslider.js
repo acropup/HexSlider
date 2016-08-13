@@ -3,6 +3,10 @@ var rcanvas;
 var lctx;
 var rctx;
 
+var r = 500; //inscribed radius
+var s = r * Math.tan(Math.PI/6); //half of a side length
+var e = 100; //triangle edge length;
+
 var time_old = -1;
 
 var p1 = {};
@@ -51,11 +55,13 @@ function init() {
 
     init_player(p1);
     init_player(p2);
-    p1.x = 0
+    p1.x = 0;
+    p1.y = 50;
 
     onResize();
 
     requestAnimationFrame(main);
+    //renderGame();
 }
 
 
@@ -67,28 +73,60 @@ function init_player(p) {
     p.speed = 0.1;
 }
 
+function wrapUniverse(p) {
+    var st = Math.sin(Math.PI / 3); //sin theta
+    var ct = Math.cos(Math.PI / 3); //cos theta
+    var tempx;
+    var tempy;
+    var i;
+
+    for (i = 0; i < 3; i += 1) {    
+        if (p.y > r) {
+            p.y -= r * 2;
+        } else if (p.y < -r) {
+            p.y += r * 2;
+        }
+        tempx = p.x * ct - p.y * st;
+        tempy = p.x * st + p.y * ct;
+        p.x = tempx;
+        p.y = tempy;
+    }
+    p.x = -p.x;
+    p.y = -p.y;
+
+    renderGame();
+}
+
+function setupTransform(x, y, ctx) {
+    "use strict";
+    //center view
+    ctx.scale(1, -1);
+    ctx.translate(lcanvas.width / 2, 0);
+    ctx.translate(0, -lcanvas.height / 2);
+
+    //offset by playerPos
+    ctx.translate(-x, -y);
+}
 
 function renderBG(x, y, context) {
     "use strict";
     var a;
     var w;
-    var r = 500
-    var s = 288.675;
     context.save()
     context.beginPath()
-    for (a = -r; a <= r; a += 50) {
+    for (a = -r; a <= r; a += e) {
         w = (r - Math.abs(a)) / r * s + s;
         context.moveTo(-w, a);
         context.lineTo( w, a);
     }
     context.rotate(Math.PI / 3);
-    for (a = -r; a <= r; a += 50) {
+    for (a = -r; a <= r; a += e) {
         w = (r - Math.abs(a)) / r * s + s;
         context.moveTo(-w, a);
         context.lineTo( w, a);
     }
     context.rotate(Math.PI / 3);
-    for (a = -r; a <= r; a += 50) {
+    for (a = -r; a <= r; a += e) {
         w = (r - Math.abs(a)) / r * s + s;
         context.moveTo(-w, a);
         context.lineTo( w, a);
@@ -115,17 +153,6 @@ function renderClear() {
     rctx.fillRect(0, 0, rcanvas.width, rcanvas.height);
 }
 
-function setupTransform(x, y, ctx) {
-    "use strict";
-    //center view
-    ctx.scale(1, -1);
-    ctx.translate(lcanvas.width / 2, 0);
-    ctx.translate(0, -lcanvas.height / 2);
-
-    //offset by playerPos
-    ctx.translate(-x, -y);
-}
-
 function renderGame() {
     "use strict";
     renderClear();
@@ -139,7 +166,6 @@ function renderGame() {
     rctx.strokeStyle = "#000000";
     renderBG(p2.x, p2.y, rctx);
 
-
     lctx.lineWidth = 5;
     lctx.strokeStyle = "#FF0000";
     renderPlayer(p2, lctx);
@@ -151,6 +177,10 @@ function renderGame() {
     renderPlayer(p1, rctx);
     rctx.strokeStyle = "#FF0000";
     renderPlayer(p2, rctx);
+}
+
+function step() {
+    main(time_old + 50);
 }
 
 function main(timestamp) {
@@ -167,12 +197,18 @@ function main(timestamp) {
     p1.x += delta * p1.speed;
     p2.y += delta * p2.speed;
 
-    if (p1.x > 500) {
-        p1.x -= 1000;
+    wrapUniverse(p1);
+    wrapUniverse(p2);
+
+    /*
+    if (p1.x > 600) {
+        p1.x = -600;
     }
-    if (p2.y > 500) {
-        p2.y -= 1000;
+    if (p2.y > 600) {
+        p2.y = -600;
     }
+    */
+
     renderGame();
     window.requestAnimationFrame(main);
 }
