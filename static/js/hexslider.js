@@ -53,10 +53,10 @@ function init() {
     lctx = lcanvas.getContext("2d");
     rctx = rcanvas.getContext("2d");
 
-    init_player(p1);
-    init_player(p2);
-    p1.x = 0;
-    p1.y = 50;
+    p1 = new Player();
+    p2 = new Player();
+    p1.pos = 0.3;
+    p2.pos = 0.7;
 
     onResize();
 
@@ -64,13 +64,39 @@ function init() {
     //renderGame();
 }
 
-
-function init_player(p) {
+function Point(x, y) {
     "use strict";
-    p.x = -50
-    p.y = 0
-    p.radius = 10;
-    p.speed = 0.1;
+    this.x = x;
+    this.y = y;
+    this.minus = function(p2) {
+        return new Point(this.x - p2.x, this.y - p2.y);
+    }
+    this.plus = function(p2) {
+        return new Point(this.x + p2.x, this.y + p2.y);
+    }
+    this.scale = function(factor) {
+        return new Point(this.x * factor, this.y * factor);
+    }
+}
+
+function Line(x1, y1, x2, y2) {
+    "use strict";
+    this.start = new Point(x1, y1);
+    this.end = new Point(x2, y2);
+    this.length = Math.sqrt((x2-x1)**2 + (y2-y1)**2);
+}
+
+function Player() {
+    "use strict";
+    this.pos = 0.5;
+    this.radius = 10;
+    this.speed = 0.1;
+    this.path = new Line(-2 * s, 0, 2 * s, 0);
+    this.nextPath = null;
+    this.getPos = function() {
+        // start + pos(end - start)
+        return this.path.start.plus(this.path.end.minus(this.path.start).scale(this.pos));
+    };
 }
 
 function wrapUniverse(p) {
@@ -97,18 +123,18 @@ function wrapUniverse(p) {
     renderGame();
 }
 
-function setupTransform(x, y, ctx) {
+function setupTransform(player, ctx) {
     "use strict";
     //center view
     ctx.scale(1, -1);
-    ctx.translate(lcanvas.width / 2, 0);
-    ctx.translate(0, -lcanvas.height / 2);
+    ctx.translate(lcanvas.width / 2, -lcanvas.height / 2);
 
     //offset by playerPos
-    ctx.translate(-x, -y);
+    var pos = player.getPos();
+    ctx.translate(-pos.x, -pos.y);
 }
 
-function renderBG(x, y, context) {
+function renderBG(context) {
     "use strict";
     var a;
     var w;
@@ -138,7 +164,8 @@ function renderBG(x, y, context) {
 function renderPlayer(player, context) {
     "use strict";
     context.beginPath()
-    context.arc(player.x, player.y, player.radius, 0, 2 * Math.PI, false);
+    var pos = player.getPos();
+    context.arc(pos.x, pos.y, player.radius, 0, 2 * Math.PI, false);
     context.stroke();
 }
 
@@ -156,15 +183,15 @@ function renderClear() {
 function renderGame() {
     "use strict";
     renderClear();
-    setupTransform(p1.x, p1.y, lctx);
-    setupTransform(p2.x, p2.y, rctx);
+    setupTransform(p1, lctx);
+    setupTransform(p2, rctx);
 
     lctx.lineWidth = 1;
     lctx.strokeStyle = "#000000";
-    renderBG(p1.x, p1.y, lctx);
+    renderBG(lctx);
     rctx.lineWidth = 1;
     rctx.strokeStyle = "#000000";
-    renderBG(p2.x, p2.y, rctx);
+    renderBG(rctx);
 
     lctx.lineWidth = 5;
     lctx.strokeStyle = "#FF0000";
@@ -179,8 +206,17 @@ function renderGame() {
     renderPlayer(p2, rctx);
 }
 
-function step() {
-    main(time_old + 50);
+function step(time = 50) {
+    main(time_old + time);
+}
+
+function physics(delta) {
+    p1.pos += (p1.speed / p1.path.length) * delta;
+    p2.pos += (p2.speed / p2.path.length) * delta;
+
+    //cheesy wrap around
+    p1.pos -= Math.floor(p1.pos);
+    p2.pos -= Math.floor(p2.pos);
 }
 
 function main(timestamp) {
@@ -194,20 +230,7 @@ function main(timestamp) {
     var delta = timestamp - time_old;
     time_old = timestamp;
 
-    p1.x += delta * p1.speed;
-    p2.y += delta * p2.speed;
-
-    wrapUniverse(p1);
-    wrapUniverse(p2);
-
-    /*
-    if (p1.x > 600) {
-        p1.x = -600;
-    }
-    if (p2.y > 600) {
-        p2.y = -600;
-    }
-    */
+    physics(delta);
 
     renderGame();
     window.requestAnimationFrame(main);
