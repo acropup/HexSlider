@@ -3,10 +3,10 @@ var rcanvas;
 var lctx;
 var rctx;
 
-const r = 300; //inscribed radius
+const r = 300; //inscribed hexagonal playing field radius
 const e = 100; //triangle height; should evenly divide `r`
                //note: this is not triangle edge length.
-const s = r * Math.tan(Math.PI/6); //half of a side length
+const s = r * Math.tan(Math.PI/6); //half of a side length (for larger game hexagon)
 
 var tracking = false;
 
@@ -40,8 +40,6 @@ function onResize() {
         };
         obj.addEventListener(type, func);
     };
-
-    /* init - you can init any event */
     throttle("resize", "optimizedResize");
 }());
 
@@ -96,7 +94,7 @@ function Line(x1, y1, x2, y2) {
     "use strict";
     this.start = new Point(x1, y1);
     this.end = new Point(x2, y2);
-    this.length = Math.sqrt((x2-x1)**2 + (y2-y1)**2);
+    this.length = Math.sqrt((x2-x1)*(x2-x1) + (y2-y1)*(y2-y1));
     this.reverse = function() {
         var temp = this.start;
         this.start = this.end;
@@ -402,6 +400,11 @@ function physics(delta) {
 
     //turn
     if (p1.pos > p1.nextTurn) {
+        var overshoot = p1.pos - p1.nextTurn;
+        overshoot *= p1.path.length;
+        overshoot /= p1.nextPath.length;
+        p1.nextPos += overshoot;
+
         p1.path = p1.nextPath;
         p1.pos = p1.nextPos;
         p1.nextPath = null;
@@ -409,6 +412,11 @@ function physics(delta) {
         p1.nextPos = 0;
     }
     if (p2.pos > p2.nextTurn) {
+        var overshoot = p2.pos - p2.nextTurn;
+        overshoot *= p2.path.length;
+        overshoot /= p2.nextPath.length;
+        p2.nextPos += overshoot;
+
         p2.path = p2.nextPath;
         p2.pos = p2.nextPos;
         p2.nextPath = null;
