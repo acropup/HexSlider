@@ -10,6 +10,7 @@ const s = r * Math.tan(Math.PI/6); //half of a side length (for larger game hexa
 const t = 2*s*e / r; //triangle edge length
 
 var tracking = true;
+var tiling = true;
 
 var time_old = -1;
 
@@ -18,7 +19,7 @@ var p2 = {};
 var pos = 0.0;
 var speed = 1.0;
 
-var testPoint = new Point(0, 0);
+var testPoint = new Point(-1000, -1000);
 
 function onResize() {
     "use strict";
@@ -236,6 +237,13 @@ function renderTiledGame() {
         lctx.restore();
         rctx.restore();
     });
+
+    lctx.lineWidth = 5;
+    rctx.lineWidth = 5;
+    lctx.strokeStyle = "#009900";
+    rctx.strokeStyle = "#009900";
+    lctx.strokeRect(testPoint.x - 10, testPoint.y - 10, 20, 20);
+    rctx.strokeRect(testPoint.x - 10, testPoint.y - 10, 20, 20);
 }
 
 function renderGame() {
@@ -307,6 +315,10 @@ function event_keydown(event) {
     //`t` toggles view tracking
     if (event.keyCode === 84) {
         tracking = !tracking;
+    }
+    //`y` toggles world tiling
+    if (event.keyCode === 89) {
+        tiling = !tiling;
     }
 
     //a=65; d=68; <=37; >=39;
@@ -391,14 +403,15 @@ function wrap(path) {
     var tempx;
     var tempy;
     var i;
+    var epsilon = 5;
     
     //Only check in the y direction 'cause it's easy.
     //  rotate by pi/3 rads to align hex edges
     for (i = 0; i < 3; i += 1) {    
-        if (path.end.y > r) {
+        if (path.end.y > r + epsilon) {
             path.end.y -= r * 2;
             path.start.y -= r * 2;
-        } else if (path.end.y < -r) {
+        } else if (path.end.y < -r - epsilon) {
             path.end.y += r * 2;
             path.start.y += r * 2;
         }
@@ -419,7 +432,6 @@ function wrap(path) {
 }
 
 function slide_player(player, delta) {
-
     if (player.pos < 1) {
         return;
     }
@@ -458,7 +470,10 @@ function mainloop(timestamp) {
 
     physics(delta);
 
-    //renderGame();
-    renderTiledGame();
+    if (tiling) {
+        renderTiledGame();
+    } else {
+        renderGame();
+    }
     window.requestAnimationFrame(mainloop);
 }
