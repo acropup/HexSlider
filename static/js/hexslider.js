@@ -16,10 +16,12 @@ var time_old = -1;
 
 var p1 = {};
 var p2 = {};
-var pos = 0.0;
+var g_pos = 0.0;
 var gameSpeed = 0.1;
 
 var testPoint = new Point(-1000, -1000);
+
+var candies = []
 
 function onResize() {
     "use strict";
@@ -60,14 +62,16 @@ function init() {
     lctx = lcanvas.getContext("2d");
     rctx = rcanvas.getContext("2d");
 
+    candies.push(new Candy(generate_random_vertex()));
+    candies.push(new Candy(generate_random_vertex()));
+    candies.push(new Candy(generate_random_vertex()));
+
     p1 = new Player();
     p2 = new Player();
     p2.path = new Line(2 * s, 0, 2 * s - t, 0);
     p2.nextPath = new Line(2 * s - t, 0, 2 * s - 2 * t, 0);
-    p2.speedMultiplier = 10.0;
     p1.path = new Line(-2 * s, 0, -2 * s + t, 0);
     p1.nextPath = new Line(-2 * s + t, 0, -2 * s + 2 * t, 0);
-    p1.speedMultiplier = 10.0;
 
     window.onkeydown = event_keydown;
     window.onmousedown = event_mdown;
@@ -85,6 +89,15 @@ function init_board() {
     //   4  5
     board = [];
     rows = []
+}
+
+function Candy(p) {
+    this.x = p.x;
+    this.y = p.y;
+    this.effect = {
+        "speedMultiplier": 36,
+        "duration": 3
+    };
 }
 
 function Point(x, y) {
@@ -128,10 +141,12 @@ function Player() {
     "use strict";
     this.pos = 0.5;
     this.radius = 10;
-    this.speedMultiplier = 1.0;
+    this.speedMultiplier = 12.0;
     this.speedOffset = 0.0;
     this.path = new Line(-2 * s, 0, 2 * s, 0);
     this.nextPath = null;
+    this.effects = {};
+    this.effectsQueue = [];
     this.getPos = function() {
         // start + pos(end - start)
         return this.path.start.plus(this.path.end.minus(this.path.start).scale(this.pos));
@@ -262,6 +277,13 @@ function renderTiledGame() {
     rctx.strokeRect(testPoint.x - 10, testPoint.y - 10, 20, 20);
 }
 
+function renderCandies(ctx) {
+    ctx.strokeStyle = "#009900";
+    candies.forEach(function (candy) {
+        ctx.strokeRect(candy.x - 10, candy.y - 10, 20, 20);
+    });
+}
+
 function renderGame() {
     "use strict";
     renderClear();
@@ -291,6 +313,9 @@ function renderGame() {
     rctx.strokeStyle = "#009900";
     lctx.strokeRect(testPoint.x - 10, testPoint.y - 10, 20, 20);
     rctx.strokeRect(testPoint.x - 10, testPoint.y - 10, 20, 20);
+
+    renderCandies(rctx);
+    renderCandies(lctx);
 }
 
 function step(time = 50) {
@@ -304,7 +329,7 @@ function mouseEvent_to_world(mouseEvent, canvas) {
     return new Point(x, y);
 }
 
-function snap_to_hex_grid(point) {
+function snap_to_tri_grid(point) {
     var temp = Math.round(point.y / e);
     point.y = temp * e;
     if (temp & 1) {
@@ -323,7 +348,7 @@ function event_mdown(mouseEvent) {
             testPoint = testPoint.plus(p1.getPos());
         }
     }
-    snap_to_hex_grid(testPoint);
+    snap_to_tri_grid(testPoint);
 }
 
 function event_keydown(event) {
@@ -353,9 +378,9 @@ function event_keydown(event) {
         //add ray to path end
         ray = ray.plus(p1.path.end);
         //new path is end to ray.
-        snap_to_hex_grid(ray);
+        snap_to_tri_grid(ray);
         p1.nextPath = new Line(p1.path.end.x, p1.path.end.y, ray.x, ray.y);
-        wrap(p1.nextPath);
+        wrap_path(p1.nextPath);
     }
     //p1 turns right by pressing 'd'
     else if (event.keyCode === 68) {
@@ -371,9 +396,9 @@ function event_keydown(event) {
         //add ray to path end
         ray = ray.plus(p1.path.end);
         //new path is end to ray.
-        snap_to_hex_grid(ray);
+        snap_to_tri_grid(ray);
         p1.nextPath = new Line(p1.path.end.x, p1.path.end.y, ray.x, ray.y);
-        wrap(p1.nextPath);
+        wrap_path(p1.nextPath);
     }
     //p2 turns left by pressing <left-arrow>
     else if (event.keyCode === 37) {
@@ -389,9 +414,9 @@ function event_keydown(event) {
         //add ray to path end
         ray = ray.plus(p2.path.end);
         //new path is end to ray.
-        snap_to_hex_grid(ray);
+        snap_to_tri_grid(ray);
         p2.nextPath = new Line(p2.path.end.x, p2.path.end.y, ray.x, ray.y);
-        wrap(p2.nextPath);
+        wrap_path(p2.nextPath);
     }
     //p2 turns right by pressing <right-arrow>
     else if (event.keyCode === 39) {
@@ -407,13 +432,13 @@ function event_keydown(event) {
         //add ray to path end
         ray = ray.plus(p2.path.end);
         //new path is end to ray.
-        snap_to_hex_grid(ray);
+        snap_to_tri_grid(ray);
         p2.nextPath = new Line(p2.path.end.x, p2.path.end.y, ray.x, ray.y);
-        wrap(p2.nextPath);
+        wrap_path(p2.nextPath);
     }
 }
 
-function wrap(path) {
+function wrap_path(path) {
     var st = Math.sin(Math.PI / 3); //sin theta
     var ct = Math.cos(Math.PI / 3); //cos theta
     var tempx;
@@ -447,7 +472,40 @@ function wrap(path) {
     path.start.y = -path.start.y;
 }
 
-function slide_player(player, delta) {
+function wrap_point(p) {
+    var st = Math.sin(Math.PI / 3); //sin theta
+    var ct = Math.cos(Math.PI / 3); //cos theta
+    var tempx;
+    var tempy;
+    var i;
+    var epsilon = 5;
+    
+    //Only check in the y direction 'cause it's easy.
+    //  rotate by pi/3 rads to align hex edges
+    for (i = 0; i < 3; i += 1) {    
+        if (p.y > r + epsilon) {
+            p.y -= r * 2;
+        } else if (p.y < -r - epsilon) {
+            p.y += r * 2;
+        }
+        tempx = p.x * ct - p.y * st;
+        tempy = p.x * st + p.y * ct;
+        p.x = tempx;
+        p.y = tempy;
+    }
+    //the points are rotated pi rads now. Rotate them back!
+    p.x = -p.x;
+    p.y = -p.y;
+}
+
+function generate_random_vertex() {
+    var vtx = new Point(Math.random() * r * 2, Math.random() * r * 2);
+    snap_to_tri_grid(vtx);
+    wrap_point(vtx);
+    return vtx;
+}
+
+function update_player(player, delta) {
     if (player.pos < 1) {
         return;
     }
@@ -456,22 +514,60 @@ function slide_player(player, delta) {
     player.path = player.nextPath;
     newstart = player.path.end;
     newend = player.path.end.minus(player.path.start).plus(player.path.end);
-    snap_to_hex_grid(newend);
+    snap_to_tri_grid(newend);
     player.nextPath = new Line(newstart.x, newstart.y, newend.x, newend.y);
-    wrap(player.nextPath);
+    wrap_path(player.nextPath);
+
+    player.effectsQueue.forEach(function (effect) {
+        //testing:
+        // a = {"effect": {"duration": 10, "speedMultiplier": 36}};
+        console.log("power applied");
+        var duration = effect.duration;
+        delete effect.duration;
+        var power = Object.keys(effect)[0];
+        var value = effect[power];
+        player.effects[power] = duration;
+        player[power] = value;
+    });
+    player.effectsQueue = [];
+
+    Object.keys(player.effects).forEach(function (effect) {
+        //effect is a key in the player.effects dictionary
+        player.effects[effect] -= 1;
+        if (player.effects[effect] <= 0) {
+            console.log("power reset");
+            delete player.effects[effect];
+            defaults = new Player();
+            player[effect] = defaults[effect];
+        }
+    });
+}
+
+function collide_candies(player) {
+    var pos = player.getPos();
+    candies = candies.filter(function (candy) {
+        if ((pos.x - candy.x) * (pos.x - candy.x) + (pos.y - candy.y) * (pos.y - candy.y) < 5) {
+            player.effectsQueue.push(candy.effect);
+            return false;
+        }
+        return true;
+    });
 }
 
 function physics(delta) {
     "use strict";
-    pos += gameSpeed * delta / 1000;
-    p1.setPos(pos);
-    p2.setPos(pos);
-    while (pos > 1) {
-        pos -= 1;
+    g_pos += gameSpeed * delta / 1000;
+    p1.setPos(g_pos);
+    p2.setPos(g_pos);
+    while (g_pos > 1) {
+        g_pos -= 1;
     }
 
-    slide_player(p1, delta);
-    slide_player(p2, delta);
+    collide_candies(p1);
+    collide_candies(p2);
+
+    update_player(p1, delta);
+    update_player(p2, delta);
 }
 
 function mainloop_init(timestamp) {
