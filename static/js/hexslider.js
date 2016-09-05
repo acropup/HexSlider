@@ -261,6 +261,52 @@ function Player() {
         }
         this.nextPath.wrap();
     }
+    this.update = function() {
+        //only run the function when player has just finished a line.
+        if (this.pos < 1) {
+            return;
+        }
+
+        var player = this;
+
+        //move on to the next line
+        player.pos -= 1;
+        player.path = player.nextPath;
+        player.setTurn("straight");
+
+        //tick the timers on active effects, removing the dead ones.
+        Object.keys(player.effects).forEach(function (effect) {
+            //effect is a key in the player.effects dictionary
+            player.effects[effect] -= 1;
+            if (player.effects[effect] <= 0) {
+
+                //corner case?
+                if (effect === "speedMultiplier") {
+                    player.speedOffset = player.speedOffset * game.constants.p_default.speedMultiplier / player.speedMultiplier;
+                }
+
+                delete player.effects[effect];
+                player[effect] = game.constants.p_default[effect];
+            }
+        });
+
+        //apply any new effects
+        player.effectsQueue.forEach(function (effect) {
+            //testing:
+            var duration = effect.duration;
+            delete effect.duration;
+            var power = Object.keys(effect)[0];
+            var value = effect[power];
+            player.effects[power] = duration;
+            player[power] = value;
+
+            //corner case?
+            if (power === "speedMultiplier") {
+                player.speedOffset = player.speedOffset * player.speedMultiplier / game.constants.p_default.speedMultiplier;
+            }
+        });
+        player.effectsQueue = [];
+    }
 }
 
 function setupTransform(player, ctx, canvas, tracking) {
@@ -478,51 +524,6 @@ function generate_random_vertex() {
     return vtx;
 }
 
-function update_player(player) {
-    if (player.pos < 1) {
-        return;
-    }
-
-    player.pos -= 1;
-    player.path = player.nextPath;
-    var newstart = player.path.end;
-    var newend = player.path.end.minus(player.path.start).plus(player.path.end);
-    newend = newend.snap_to_grid();
-    player.nextPath = new Line(newstart.x, newstart.y, newend.x, newend.y);
-    player.nextPath.wrap();
-
-    Object.keys(player.effects).forEach(function (effect) {
-        //effect is a key in the player.effects dictionary
-        player.effects[effect] -= 1;
-        if (player.effects[effect] <= 0) {
-
-            //corner case?
-            if (effect === "speedMultiplier") {
-                player.speedOffset = player.speedOffset * game.constants.p_default.speedMultiplier / player.speedMultiplier;
-            }
-
-            delete player.effects[effect];
-            player[effect] = game.constants.p_default[effect];
-        }
-    });
-
-    player.effectsQueue.forEach(function (effect) {
-        //testing:
-        var duration = effect.duration;
-        delete effect.duration;
-        var power = Object.keys(effect)[0];
-        var value = effect[power];
-        player.effects[power] = duration;
-        player[power] = value;
-
-        //corner case?
-        if (power === "speedMultiplier") {
-            player.speedOffset = player.speedOffset * player.speedMultiplier / game.constants.p_default.speedMultiplier;
-        }
-    });
-    player.effectsQueue = [];
-}
-
 function dist_squared(p1, p2) {
   return (p2.x - p1.x) * (p2.x - p1.x) + (p2.y - p1.y) * (p2.y - p1.y);
 }
@@ -555,8 +556,8 @@ function physics(state) {
 
     collide_candies(state);
 
-    update_player(state.p1);
-    update_player(state.p2);
+    state.p1.update();
+    state.p2.update();
 }
 
 function mainloop_init(timestamp) {
