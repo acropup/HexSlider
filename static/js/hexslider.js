@@ -9,15 +9,15 @@ const e = 100; //triangle height; should evenly divide `r`
 const s = r * Math.tan(Math.PI/6); //half of a side length (for larger game hexagon)
 const t = 2*s*e / r; //triangle edge length
 
-var tracking = true;
-var tiling = true;
+var tracking = false;
+var tiling = false;
 
 var time_old = -1;
 
 var p1 = {};
 var p2 = {};
 var pos = 0.0;
-var speed = 1.0;
+var gameSpeed = 0.1;
 
 var testPoint = new Point(-1000, -1000);
 
@@ -64,8 +64,10 @@ function init() {
     p2 = new Player();
     p2.path = new Line(2 * s, 0, 2 * s - t, 0);
     p2.nextPath = new Line(2 * s - t, 0, 2 * s - 2 * t, 0);
+    p2.speedMultiplier = 10.0;
     p1.path = new Line(-2 * s, 0, -2 * s + t, 0);
     p1.nextPath = new Line(-2 * s + t, 0, -2 * s + 2 * t, 0);
+    p1.speedMultiplier = 10.0;
 
     window.onkeydown = event_keydown;
     window.onmousedown = event_mdown;
@@ -126,12 +128,26 @@ function Player() {
     "use strict";
     this.pos = 0.5;
     this.radius = 10;
+    this.speedMultiplier = 1.0;
+    this.speedOffset = 0.0;
     this.path = new Line(-2 * s, 0, 2 * s, 0);
     this.nextPath = null;
     this.getPos = function() {
         // start + pos(end - start)
         return this.path.start.plus(this.path.end.minus(this.path.start).scale(this.pos));
     };
+    this.setPos = function(newPos) {
+        var tempPos = newPos 
+        tempPos *= this.speedMultiplier;
+        tempPos -= this.speedOffset;
+        if (tempPos < 0) {
+            tempPos += this.speedOffset;
+            this.speedOffset = 0;
+        } else if (tempPos > 1) {
+            this.speedOffset += 1
+        }
+        this.pos = tempPos;
+    }
 }
 
 function setupTransform(player, ctx) {
@@ -279,6 +295,7 @@ function renderGame() {
 
 function step(time = 50) {
     main(time_old + time);
+    //blank
 }
 
 function mouseEvent_to_world(mouseEvent, canvas) {
@@ -311,13 +328,12 @@ function event_mdown(mouseEvent) {
 
 function event_keydown(event) {
     "use strict";
-
     //`t` toggles view tracking
     if (event.keyCode === 84) {
         tracking = !tracking;
     }
     //`y` toggles world tiling
-    if (event.keyCode === 89) {
+    else if (event.keyCode === 89) {
         tiling = !tiling;
     }
 
@@ -447,9 +463,9 @@ function slide_player(player, delta) {
 
 function physics(delta) {
     "use strict";
-    pos += speed * delta / 1000;
-    p1.pos = pos;
-    p2.pos = pos;
+    pos += gameSpeed * delta / 1000;
+    p1.setPos(pos);
+    p2.setPos(pos);
     while (pos > 1) {
         pos -= 1;
     }
