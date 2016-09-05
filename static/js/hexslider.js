@@ -16,6 +16,7 @@ var time_old = -1;
 
 var p1 = {};
 var p2 = {};
+var p_default = {}
 var g_pos = 0.0;
 var gameSpeed = 0.1;
 
@@ -68,6 +69,7 @@ function init() {
 
     p1 = new Player();
     p2 = new Player();
+    p_default = new Player();
     p2.path = new Line(2 * s, 0, 2 * s - t, 0);
     p2.nextPath = new Line(2 * s - t, 0, 2 * s - 2 * t, 0);
     p1.path = new Line(-2 * s, 0, -2 * s + t, 0);
@@ -95,7 +97,7 @@ function Candy(p) {
     this.x = p.x;
     this.y = p.y;
     this.effect = {
-        "speedMultiplier": 36,
+        "speedMultiplier": 24,
         "duration": 3
     };
 }
@@ -518,29 +520,36 @@ function update_player(player, delta) {
     player.nextPath = new Line(newstart.x, newstart.y, newend.x, newend.y);
     wrap_path(player.nextPath);
 
+    Object.keys(player.effects).forEach(function (effect) {
+        //effect is a key in the player.effects dictionary
+        player.effects[effect] -= 1;
+        if (player.effects[effect] <= 0) {
+            
+            //corner case?
+            if (effect === "speedMultiplier") {
+                player.speedOffset = player.speedOffset * p_default.speedMultiplier / player.speedMultiplier;
+            }
+
+            delete player.effects[effect];
+            player[effect] = p_default[effect];
+        }
+    });
+
     player.effectsQueue.forEach(function (effect) {
         //testing:
-        // a = {"effect": {"duration": 10, "speedMultiplier": 36}};
-        console.log("power applied");
         var duration = effect.duration;
         delete effect.duration;
         var power = Object.keys(effect)[0];
         var value = effect[power];
         player.effects[power] = duration;
         player[power] = value;
-    });
-    player.effectsQueue = [];
 
-    Object.keys(player.effects).forEach(function (effect) {
-        //effect is a key in the player.effects dictionary
-        player.effects[effect] -= 1;
-        if (player.effects[effect] <= 0) {
-            console.log("power reset");
-            delete player.effects[effect];
-            defaults = new Player();
-            player[effect] = defaults[effect];
+        //corner case?
+        if (power === "speedMultiplier") {
+            player.speedOffset = player.speedOffset * player.speedMultiplier / p_default.speedMultiplier;
         }
     });
+    player.effectsQueue = [];
 }
 
 function collide_candies(player) {
