@@ -1,9 +1,23 @@
+/* Ideas/questions/notes/plans:
+S Why not "use strict" at the top of file and be done with it?
+S Idea: Convert internal representation of nodes to a standard integer grid, 
+        and have a function that maps grid points (scale + translate) to the
+        tiled triangular grid for rendering.
+S Idea re walls:
+    Player does not "turn", player creates wall at vertex and bounces off of it.
+	Walls should not last forever.
+	Walls influence all players that run into them.
+	Checking for collision at vertex allows us to drop the whole player.nextPath concept.
+S Maybe change global e (triangle height) to actually represent triangle edge length. Thoughts?
+
+*/
+
 var lcanvas;
 var rcanvas;
 var lctx;
 var rctx;
 
-const r = 300; //circumscribed hexagonal playing field radius (distance from center to edge, not center to point)
+const r = 300; //circumscribed hexagonal playing field radius (distance from center to middle of edge, not center to corner)
 const e = 100; //triangle height; should evenly divide `r`
                //note: this is not triangle edge length.
 const s = r * Math.tan(Math.PI/6); //half of a side length (for larger game hexagon)
