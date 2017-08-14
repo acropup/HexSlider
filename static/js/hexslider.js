@@ -5,9 +5,9 @@ S Idea: Convert internal representation of nodes to a standard integer grid,
         tiled triangular grid for rendering.
 S Idea re walls:
     Player does not "turn", player creates wall at vertex and bounces off of it.
-	Walls should not last forever.
-	Walls influence all players that run into them.
-	Checking for collision at vertex allows us to drop the whole player.nextPath concept.
+    Walls should not last forever.
+    Walls influence all players that run into them.
+    Checking for collision at vertex allows us to drop the whole player.nextPath concept.
 S Maybe change global e (triangle height) to actually represent triangle edge length. Thoughts?
 
 */
@@ -83,7 +83,11 @@ function init() {
     candies.push(new Candy(generate_random_vertex()));
 
     p1 = new Player();
+    p1.keyLeft = 65;  //a=65; d=68;
+    p1.keyRight = 68;
     p2 = new Player();
+    p2.keyLeft = 37;  //<=37; >=39;
+    p2.keyRight = 39;
     p_default = new Player();
     p2.path = new Line(2 * s, 0, 2 * s - t, 0);
     p2.nextPath = new Line(2 * s - t, 0, 2 * s - 2 * t, 0);
@@ -196,6 +200,8 @@ function Player() {
     "use strict";
     this.pos = 0.5;
     this.radius = 10;
+    this.keyLeft;
+    this.keyRight;
     this.speedMultiplier = 12.0;
     this.speedOffset = 0.0;
     this.path = new Line(-2 * s, 0, 2 * s, 0);
@@ -216,7 +222,39 @@ function Player() {
             this.speedOffset += 1;
         }
         this.pos = tempPos;
-    }
+    };
+    this.keyPress = function(key) {
+        var direction = 0;
+        if (key === this.keyLeft) direction = 1;
+        if (key === this.keyRight) direction = -1;
+        if (!direction) return false; //Keypress not handled
+		
+		//find path ray end-start
+		var ray = this.path.end.minus(this.path.start);
+		//rotate path 2pi/3 rad
+		var angle = direction * 2 * Math.PI/3;
+		var ct = Math.cos(angle);
+		var st = Math.sin(angle);
+		var tempx = ray.x * ct - ray.y * st;
+		var tempy = ray.x * st + ray.y * ct;
+		ray.x = tempx;
+		ray.y = tempy;
+		//add ray to path end
+		ray = ray.plus(this.path.end);
+		//new path is end to ray.
+		snap_to_tri_grid(ray);
+		this.nextPath = new Line(this.path.end.x, this.path.end.y, ray.x, ray.y);
+		wrap_path(this.nextPath);
+		
+		//Path angle is either +1 to left or -1 to right. +2 is like -1 but without risk of going negative
+		var pa = (getPathAngle(this.path) + ((direction == 1) ? 1 : 2)) % 3;
+		log('path' + getPathAngle(this.path) + ' and ' + pa);
+		log(this.path.toString());
+		walls.push(new Wall(this.path.end, pa));
+		
+		return true; //Keypress handled
+    };
+    
 }
 
 function getPathAngleIgnoreDirection(line) {
@@ -454,92 +492,11 @@ function event_keydown(event) {
     }
 
     //a=65; d=68; <=37; >=39;
-    //p1 turns left by pressing 'a'
-
-    else if (c === 'A') {
-        //find path ray end-start
-        var ray = p1.path.end.minus(p1.path.start);
-        //rotate path 2pi/3 rad
-        var ct = Math.cos(2 * Math.PI/3);
-        var st = Math.sin(2 * Math.PI/3);
-        var tempx = ray.x * ct - ray.y * st;
-        var tempy = ray.x * st + ray.y * ct;
-        ray.x = tempx;
-        ray.y = tempy;
-        //add ray to path end
-        ray = ray.plus(p1.path.end);
-        //new path is end to ray.
-        snap_to_tri_grid(ray);
-        p1.nextPath = new Line(p1.path.end.x, p1.path.end.y, ray.x, ray.y);
-        wrap_path(p1.nextPath);
-        
-        var pa = (getPathAngle(p1.path) + 1) % 3;
-        log('path' + getPathAngle(p1.path) + ' and ' + pa);
-        log(p1.path.toString());
-        walls.push(new Wall(p1.path.end, pa));
+    else if (p1.keyPress(event.keyCode)) {
+        log('p1 handled key ' + c);
     }
-    //p1 turns right by pressing 'd'
-    else if (c === 'D') {
-        //find path ray end-start
-        var ray = p1.path.end.minus(p1.path.start);
-        //rotate path -2pi/3 rad
-        var ct = Math.cos(-2 * Math.PI/3);
-        var st = Math.sin(-2 * Math.PI/3);
-        var tempx = ray.x * ct - ray.y * st;
-        var tempy = ray.x * st + ray.y * ct;
-        ray.x = tempx;
-        ray.y = tempy;
-        //add ray to path end
-        ray = ray.plus(p1.path.end);
-        //new path is end to ray.
-        snap_to_tri_grid(ray);
-        p1.nextPath = new Line(p1.path.end.x, p1.path.end.y, ray.x, ray.y);
-        wrap_path(p1.nextPath);
-        
-        var pa = (getPathAngle(p1.path) + 2) % 3; //+2 is like -1 but without risk of going negative
-        walls.push(new Wall(p1.path.end, pa));
-    }
-    //p2 turns left by pressing <left-arrow>
-    else if (event.keyCode === 37) {
-        //find path ray end-start
-        var ray = p2.path.end.minus(p2.path.start);
-        //rotate path 2pi/3 rad
-        var ct = Math.cos(2 * Math.PI/3);
-        var st = Math.sin(2 * Math.PI/3);
-        var tempx = ray.x * ct - ray.y * st;
-        var tempy = ray.x * st + ray.y * ct;
-        ray.x = tempx;
-        ray.y = tempy;
-        //add ray to path end
-        ray = ray.plus(p2.path.end);
-        //new path is end to ray.
-        snap_to_tri_grid(ray);
-        p2.nextPath = new Line(p2.path.end.x, p2.path.end.y, ray.x, ray.y);
-        wrap_path(p2.nextPath);
-        
-        var pa = (getPathAngle(p2.path) + 1) % 3;
-        walls.push(new Wall(p2.path.end, pa));
-    }
-    //p2 turns right by pressing <right-arrow>
-    else if (event.keyCode === 39) {
-        //find path ray end-start
-        var ray = p2.path.end.minus(p2.path.start);
-        //rotate path -2pi/3 rad
-        var ct = Math.cos(-2 * Math.PI/3);
-        var st = Math.sin(-2 * Math.PI/3);
-        var tempx = ray.x * ct - ray.y * st;
-        var tempy = ray.x * st + ray.y * ct;
-        ray.x = tempx;
-        ray.y = tempy;
-        //add ray to path end
-        ray = ray.plus(p2.path.end);
-        //new path is end to ray.
-        snap_to_tri_grid(ray);
-        p2.nextPath = new Line(p2.path.end.x, p2.path.end.y, ray.x, ray.y);
-        wrap_path(p2.nextPath);
-        
-        var pa = (getPathAngle(p2.path) + 2) % 3; //+2 is like -1 but without risk of going negative
-        walls.push(new Wall(p2.path.end, pa));
+    else if (p2.keyPress(event.keyCode)) {
+        log('p2 handled key ' + c);
     }
 }
 
