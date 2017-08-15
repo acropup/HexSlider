@@ -123,7 +123,22 @@ function Candy(p) {
 function Wall(pos, orient) {
     this.x = pos.x;
     this.y = pos.y;
-    this.orientation = orient; //Should be 0-2... 0: --, 1: /, 2: \
+    this.orientation = orient; //Should be 0-2... 0: --, 1: /, 2: \ .
+	this.ttl = 1000;
+}
+
+function update_walls(dt) {
+	var i = walls.length;
+	while (i--) {
+		var w = walls[i]
+		w.ttl -= dt;
+		if (w.ttl <= 0) { //TTL expired
+			//Replace current wall with last wall, and shrink array by 1 element
+			walls[i] = walls[walls.length - 1];
+			walls.length--;
+		}
+		
+	}
 }
         
 function renderWalls(context) {
@@ -639,6 +654,8 @@ function physics(delta) {
 
     update_player(p1, delta);
     update_player(p2, delta);
+	
+	update_walls(delta);
 }
 
 function mainloop_init(timestamp) {
