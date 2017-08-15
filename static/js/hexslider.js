@@ -121,29 +121,29 @@ function Candy(p) {
 }
 
 function Wall(pos, orient, size) {
-	//Size param is optional
+    //Size param is optional
     this.x = pos.x;
     this.y = pos.y;
     this.orientation = orient; //Should be 0-2... 0: --, 1: /, 2: \ .
-	this.maxSize = size || t/6;
-	//this.ttl = 1000;
+    this.maxSize = size || t/6;
+    //this.ttl = 1000;
 }
 Wall.prototype.ttl = 1000; //ttl is decremented over time for each Wall
 Wall.prototype.tIn = 50;
 Wall.prototype.tOut = 250;
 
 function update_walls(dt) {
-	var i = walls.length;
-	while (i--) {
-		var w = walls[i]
-		w.ttl -= dt;
-		if (w.ttl <= 0) { //TTL expired
-			//Replace current wall with last wall, and shrink array by 1 element
-			walls[i] = walls[walls.length - 1];
-			walls.length--;
-		}
-		
-	}
+    var i = walls.length;
+    while (i--) {
+        var w = walls[i]
+        w.ttl -= dt;
+        if (w.ttl <= 0) { //TTL expired
+            //Replace current wall with last wall, and shrink array by 1 element
+            walls[i] = walls[walls.length - 1];
+            walls.length--;
+        }
+        
+    }
 }
         
 function renderWalls(context) {
@@ -153,15 +153,15 @@ function renderWalls(context) {
     context.strokeStyle = "#000000";
     context.beginPath();
     walls.forEach(function (wall) {
-		var hl = wall.maxSize; //half-length of wall
-		//Fade in/out based on ttl
-		if (wall.ttl > (Wall.prototype.ttl - wall.tIn)) {
-			hl *= (Wall.prototype.ttl - wall.ttl) / wall.tIn;
-		} else if (wall.ttl < wall.tOut) {
-			hl *= wall.ttl / wall.tOut;
-		}
-		var hlx = hl * xCoef;  //half-length x when wall on an angle
-		var hly = hl * yCoef;
+        var hl = wall.maxSize; //half-length of wall
+        //Fade in/out based on ttl
+        if (wall.ttl > (Wall.prototype.ttl - wall.tIn)) {
+            hl *= (Wall.prototype.ttl - wall.ttl) / wall.tIn;
+        } else if (wall.ttl < wall.tOut) {
+            hl *= wall.ttl / wall.tOut;
+        }
+        var hlx = hl * xCoef;  //half-length x when wall on an angle
+        var hly = hl * yCoef;
         switch(wall.orientation) {
             case 0: //Horizontal Wall
                 context.moveTo(wall.x-hl, wall.y);
@@ -256,31 +256,31 @@ function Player() {
         if (key === this.keyLeft) direction = 1;
         if (key === this.keyRight) direction = -1;
         if (!direction) return false; //Keypress not handled
-		
-		//find path ray end-start
-		var ray = this.path.end.minus(this.path.start);
-		//rotate path 2pi/3 rad
-		var angle = direction * 2 * Math.PI/3;
-		var ct = Math.cos(angle);
-		var st = Math.sin(angle);
-		var tempx = ray.x * ct - ray.y * st;
-		var tempy = ray.x * st + ray.y * ct;
-		ray.x = tempx;
-		ray.y = tempy;
-		//add ray to path end
-		ray = ray.plus(this.path.end);
-		//new path is end to ray.
-		snap_to_tri_grid(ray);
-		this.nextPath = new Line(this.path.end.x, this.path.end.y, ray.x, ray.y);
-		wrap_path(this.nextPath);
-		
-		//Path angle is either +1 to left or -1 to right. +2 is like -1 but without risk of going negative
-		var pa = (getPathAngle(this.path) + ((direction == 1) ? 1 : 2)) % 3;
-		log('path' + getPathAngle(this.path) + ' and ' + pa);
-		log(this.path.toString());
-		walls.push(new Wall(this.path.end, pa));
-		
-		return true; //Keypress handled
+        
+        //find path ray end-start
+        var ray = this.path.end.minus(this.path.start);
+        //rotate path 2pi/3 rad
+        var angle = direction * 2 * Math.PI/3;
+        var ct = Math.cos(angle);
+        var st = Math.sin(angle);
+        var tempx = ray.x * ct - ray.y * st;
+        var tempy = ray.x * st + ray.y * ct;
+        ray.x = tempx;
+        ray.y = tempy;
+        //add ray to path end
+        ray = ray.plus(this.path.end);
+        //new path is end to ray.
+        snap_to_tri_grid(ray);
+        this.nextPath = new Line(this.path.end.x, this.path.end.y, ray.x, ray.y);
+        wrap_path(this.nextPath);
+        
+        //Path angle is either +1 to left or -1 to right. +2 is like -1 but without risk of going negative
+        var pa = (getPathAngle(this.path) + ((direction == 1) ? 1 : 2)) % 3;
+        log('path' + getPathAngle(this.path) + ' and ' + pa);
+        log(this.path.toString());
+        walls.push(new Wall(this.path.end, pa));
+        
+        return true; //Keypress handled
     };
     
 }
@@ -667,8 +667,8 @@ function physics(delta) {
 
     update_player(p1, delta);
     update_player(p2, delta);
-	
-	update_walls(delta);
+    
+    update_walls(delta);
 }
 
 function mainloop_init(timestamp) {
