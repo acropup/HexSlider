@@ -120,12 +120,17 @@ function Candy(p) {
     };
 }
 
-function Wall(pos, orient) {
+function Wall(pos, orient, size) {
+	//Size param is optional
     this.x = pos.x;
     this.y = pos.y;
     this.orientation = orient; //Should be 0-2... 0: --, 1: /, 2: \ .
-	this.ttl = 1000;
+	this.maxSize = size || t/6;
+	//this.ttl = 1000;
 }
+Wall.prototype.ttl = 1000; //ttl is decremented over time for each Wall
+Wall.prototype.tIn = 50;
+Wall.prototype.tOut = 250;
 
 function update_walls(dt) {
 	var i = walls.length;
@@ -142,13 +147,21 @@ function update_walls(dt) {
 }
         
 function renderWalls(context) {
-    var hl = 15; //half-length of wall
-    var hlx = hl * Math.cos(Math.PI/3); //half-length x when wall on an angle
-    var hly = hl * Math.sin(Math.PI/3);
+    var xCoef = Math.cos(Math.PI/3); //coef for x-component when wall on an angle
+    var yCoef = Math.sin(Math.PI/3);
     context.lineWidth = 4;
     context.strokeStyle = "#000000";
     context.beginPath();
     walls.forEach(function (wall) {
+		var hl = wall.maxSize; //half-length of wall
+		//Fade in/out based on ttl
+		if (wall.ttl > (Wall.prototype.ttl - wall.tIn)) {
+			hl *= (Wall.prototype.ttl - wall.ttl) / wall.tIn;
+		} else if (wall.ttl < wall.tOut) {
+			hl *= wall.ttl / wall.tOut;
+		}
+		var hlx = hl * xCoef;  //half-length x when wall on an angle
+		var hly = hl * yCoef;
         switch(wall.orientation) {
             case 0: //Horizontal Wall
                 context.moveTo(wall.x-hl, wall.y);
