@@ -1,9 +1,23 @@
+/* Ideas/questions/notes/plans:
+S Why not "use strict" at the top of file and be done with it?
+S Idea: Convert internal representation of nodes to a standard integer grid, 
+        and have a function that maps grid points (scale + translate) to the
+        tiled triangular grid for rendering.
+S Idea re walls:
+    Player does not "turn", player creates wall at vertex and bounces off of it.
+    Walls should not last forever.
+    Walls influence all players that run into them.
+    Checking for collision at vertex allows us to drop the whole player.nextPath concept.
+S Maybe change global e (triangle height) to actually represent triangle edge length. Thoughts?
+
+*/
+
 var lcanvas;
 var rcanvas;
 var lctx;
 var rctx;
 
-const r = 300; //inscribed hexagonal playing field radius
+const r = 300; //circumscribed hexagonal playing field radius (distance from center to middle of edge, not center to corner)
 const e = 100; //triangle height; should evenly divide `r`
                //note: this is not triangle edge length.
 const s = r * Math.tan(Math.PI/6); //half of a side length (for larger game hexagon)
@@ -16,13 +30,14 @@ var time_old = -1;
 
 var p1 = {};
 var p2 = {};
-var p_default = {}
+var p_default = {};
 var g_pos = 0.0;
 var gameSpeed = 0.1;
 
 var testPoint = new Point(-1000, -1000);
 
-var candies = []
+var candies = [];
+var walls = [];
 
 function onResize() {
     "use strict";
@@ -68,7 +83,11 @@ function init() {
     candies.push(new Candy(generate_random_vertex()));
 
     p1 = new Player();
+    p1.keyLeft = 65;  //a=65; d=68;
+    p1.keyRight = 68;
     p2 = new Player();
+    p2.keyLeft = 37;  //<=37; >=39;
+    p2.keyRight = 39;
     p_default = new Player();
     p2.path = new Line(2 * s, 0, 2 * s - t, 0);
     p2.nextPath = new Line(2 * s - t, 0, 2 * s - 2 * t, 0);
@@ -84,15 +103,14 @@ function init() {
 }
 
 function init_board() {
-    //   2  1
+    //  2    1
     //   \  /
     // 3 -  - 0
     //   /  \
-    //   4  5
+    //  4    5
     board = [];
-    rows = []
+    rows = [];
 }
-
 function Candy(p) {
     this.x = p.x;
     this.y = p.y;
@@ -100,6 +118,38 @@ function Candy(p) {
         "speedMultiplier": 24,
         "duration": 3
     };
+}
+
+function Wall(pos, orient) {
+    this.x = pos.x;
+    this.y = pos.y;
+    this.orientation = orient; //Should be 0-2... 0: --, 1: /, 2: \
+}
+        
+function renderWalls(context) {
+    var hl = 15; //half-length of wall
+    var hlx = hl * Math.cos(Math.PI/3); //half-length x when wall on an angle
+    var hly = hl * Math.sin(Math.PI/3);
+    context.lineWidth = 4;
+    context.strokeStyle = "#000000";
+    context.beginPath();
+    walls.forEach(function (wall) {
+        switch(wall.orientation) {
+            case 0: //Horizontal Wall
+                context.moveTo(wall.x-hl, wall.y);
+                context.lineTo(wall.x+hl, wall.y);
+                break;
+            case 1: //Forwardslash Wall
+                context.moveTo(wall.x-hlx, wall.y-hly);
+                context.lineTo(wall.x+hlx, wall.y+hly);
+                break;
+            case 2: //Backslash Wall
+                context.moveTo(wall.x-hlx, wall.y+hly);
+                context.lineTo(wall.x+hlx, wall.y-hly);
+                break;
+        }
+    });
+    context.stroke();
 }
 
 function Point(x, y) {
@@ -119,6 +169,10 @@ function Point(x, y) {
         var len = Math.sqrt(this.x * this.x + this.y * this.y);
         return new Point(this.x / len, this.y / len);
     }
+    this.lerp = function(p2, percent) {
+        return new Point(this.x + percent * (p2.x - this.x),
+                        this.y + percent * (p2.y - this.y));
+    }
     this.toString = function() {
         return "(" + this.x + ", " + this.y + ")";
     }
@@ -134,6 +188,9 @@ function Line(x1, y1, x2, y2) {
         this.start = this.end;
         this.end = temp;
     }
+    this.lerp = function(percent) {
+        return this.start.lerp(this.end, percent);
+    }
     this.toString = function() {
         return this.start.toString() + " -> " + this.end.toString();
     }
@@ -143,35 +200,98 @@ function Player() {
     "use strict";
     this.pos = 0.5;
     this.radius = 10;
+    this.keyLeft;
+    this.keyRight;
     this.speedMultiplier = 12.0;
     this.speedOffset = 0.0;
     this.path = new Line(-2 * s, 0, 2 * s, 0);
     this.nextPath = null;
     this.effects = {};
     this.effectsQueue = [];
-    this.getPos = function() {
-        // start + pos(end - start)
-        return this.path.start.plus(this.path.end.minus(this.path.start).scale(this.pos));
+    this.getPos = function() { //@Rename to getCoords? Player pos is percent along line
+        return this.path.lerp(this.pos);
     };
     this.setPos = function(newPos) {
-        var tempPos = newPos 
+        var tempPos = newPos;
         tempPos *= this.speedMultiplier;
         tempPos -= this.speedOffset;
         if (tempPos < 0) {
             tempPos += this.speedOffset;
             this.speedOffset = 0;
         } else if (tempPos > 1) {
-            this.speedOffset += 1
+            this.speedOffset += 1;
         }
         this.pos = tempPos;
-    }
+    };
+    this.keyPress = function(key) {
+        var direction = 0;
+        if (key === this.keyLeft) direction = 1;
+        if (key === this.keyRight) direction = -1;
+        if (!direction) return false; //Keypress not handled
+		
+		//find path ray end-start
+		var ray = this.path.end.minus(this.path.start);
+		//rotate path 2pi/3 rad
+		var angle = direction * 2 * Math.PI/3;
+		var ct = Math.cos(angle);
+		var st = Math.sin(angle);
+		var tempx = ray.x * ct - ray.y * st;
+		var tempy = ray.x * st + ray.y * ct;
+		ray.x = tempx;
+		ray.y = tempy;
+		//add ray to path end
+		ray = ray.plus(this.path.end);
+		//new path is end to ray.
+		snap_to_tri_grid(ray);
+		this.nextPath = new Line(this.path.end.x, this.path.end.y, ray.x, ray.y);
+		wrap_path(this.nextPath);
+		
+		//Path angle is either +1 to left or -1 to right. +2 is like -1 but without risk of going negative
+		var pa = (getPathAngle(this.path) + ((direction == 1) ? 1 : 2)) % 3;
+		log('path' + getPathAngle(this.path) + ' and ' + pa);
+		log(this.path.toString());
+		walls.push(new Wall(this.path.end, pa));
+		
+		return true; //Keypress handled
+    };
+    
 }
+
+function getPathAngleIgnoreDirection(line) {
+    "use strict";
+    var result = getPathAngle(line);
+    return (result > 2) ? result - 3 : result;
+}
+
+function getPathAngle(line) {
+    "use strict";
+    //  2    1
+    //   \  /
+    // 3 -  - 0
+    //   /  \
+    //  4    5
+    var dx = line.end.x - line.start.x;
+    var dy = line.end.y - line.start.y;
+    if (dy > -0.0001 && dy < 0.0001){//dy == 0) {    //Horizontal Line
+        if (dx > 0) return 0; //going right
+        if (dx > 0) return 0; //going right
+        else        return 3; //going left
+    } else {          //Angled Line
+        if (dx > 0) {
+            if (dy > 0) return 1;
+            else        return 5;
+        } else {
+            if (dy > 0) return 2;
+            else        return 4;
+        }
+    }
+}    
 
 function setupTransform(player, ctx) {
     "use strict";
     //center view
     ctx.scale(1, -1);
-    ctx.translate(lcanvas.width / 2, -lcanvas.height / 2);
+    ctx.translate(lcanvas.width / 2, -lcanvas.height / 2); //ok because lcanvas and rcanvas dimensions are equal
 
     //track the player
     if (tracking) {
@@ -187,18 +307,21 @@ function renderBG(context) {
     var w;
     context.save();
     context.beginPath();
+    //draw horizontal lines
     for (a = -r; a <= r; a += e) {
         w = (r - Math.abs(a)) / r * s + s;
         context.moveTo(-w, a);
         context.lineTo( w, a);
     }
     context.rotate(Math.PI / 3);
+    //draw horizontal lines
     for (a = -r; a <= r; a += e) {
         w = (r - Math.abs(a)) / r * s + s;
         context.moveTo(-w, a);
         context.lineTo( w, a);
     }
     context.rotate(Math.PI / 3);
+    //draw horizontal lines
     for (a = -r; a <= r; a += e) {
         w = (r - Math.abs(a)) / r * s + s;
         context.moveTo(-w, a);
@@ -210,7 +333,7 @@ function renderBG(context) {
 
 function renderPlayer(player, context) {
     "use strict";
-    context.beginPath()
+    context.beginPath();
     var pos = player.getPos();
     context.arc(pos.x, pos.y, player.radius, 0, 2 * Math.PI, false);
     context.stroke();
@@ -236,7 +359,7 @@ function renderTiledGame() {
         , [+3 * s, r]
         , [-3 * s, -r]
         , [+3 * s, -r]
-        ]
+        ];
 
     renderClear();
     setupTransform(p1, lctx);
@@ -318,6 +441,8 @@ function renderGame() {
 
     renderCandies(rctx);
     renderCandies(lctx);
+    renderWalls(rctx);
+    renderWalls(lctx);
 }
 
 function step(time = 50) {
@@ -355,88 +480,23 @@ function event_mdown(mouseEvent) {
 
 function event_keydown(event) {
     "use strict";
+    var c = String.fromCharCode(event.keyCode);
+    console.log('keyCode ' + event.keyCode + ', char ' + c);
     //`t` toggles view tracking
-    if (event.keyCode === 84) {
+    if (c === 'T') {
         tracking = !tracking;
     }
     //`y` toggles world tiling
-    else if (event.keyCode === 89) {
+    else if (c === 'Y') {
         tiling = !tiling;
     }
 
     //a=65; d=68; <=37; >=39;
-    //p1 turns left by pressing 'a'
-
-    else if (event.keyCode === 65) {
-        //find path ray end-start
-        var ray = p1.path.end.minus(p1.path.start);
-        //rotate path 2pi/3 rad
-        var ct = Math.cos(2 * Math.PI/3);
-        var st = Math.sin(2 * Math.PI/3);
-        var tempx = ray.x * ct - ray.y * st;
-        var tempy = ray.x * st + ray.y * ct;
-        ray.x = tempx;
-        ray.y = tempy;
-        //add ray to path end
-        ray = ray.plus(p1.path.end);
-        //new path is end to ray.
-        snap_to_tri_grid(ray);
-        p1.nextPath = new Line(p1.path.end.x, p1.path.end.y, ray.x, ray.y);
-        wrap_path(p1.nextPath);
+    else if (p1.keyPress(event.keyCode)) {
+        log('p1 handled key ' + c);
     }
-    //p1 turns right by pressing 'd'
-    else if (event.keyCode === 68) {
-        //find path ray end-start
-        var ray = p1.path.end.minus(p1.path.start);
-        //rotate path 2pi/3 rad
-        var ct = Math.cos(-2 * Math.PI/3);
-        var st = Math.sin(-2 * Math.PI/3);
-        var tempx = ray.x * ct - ray.y * st;
-        var tempy = ray.x * st + ray.y * ct;
-        ray.x = tempx;
-        ray.y = tempy;
-        //add ray to path end
-        ray = ray.plus(p1.path.end);
-        //new path is end to ray.
-        snap_to_tri_grid(ray);
-        p1.nextPath = new Line(p1.path.end.x, p1.path.end.y, ray.x, ray.y);
-        wrap_path(p1.nextPath);
-    }
-    //p2 turns left by pressing <left-arrow>
-    else if (event.keyCode === 37) {
-        //find path ray end-start
-        var ray = p2.path.end.minus(p2.path.start);
-        //rotate path 2pi/3 rad
-        var ct = Math.cos(2 * Math.PI/3);
-        var st = Math.sin(2 * Math.PI/3);
-        var tempx = ray.x * ct - ray.y * st;
-        var tempy = ray.x * st + ray.y * ct;
-        ray.x = tempx;
-        ray.y = tempy;
-        //add ray to path end
-        ray = ray.plus(p2.path.end);
-        //new path is end to ray.
-        snap_to_tri_grid(ray);
-        p2.nextPath = new Line(p2.path.end.x, p2.path.end.y, ray.x, ray.y);
-        wrap_path(p2.nextPath);
-    }
-    //p2 turns right by pressing <right-arrow>
-    else if (event.keyCode === 39) {
-        //find path ray end-start
-        var ray = p2.path.end.minus(p2.path.start);
-        //rotate path 2pi/3 rad
-        var ct = Math.cos(-2 * Math.PI/3);
-        var st = Math.sin(-2 * Math.PI/3);
-        var tempx = ray.x * ct - ray.y * st;
-        var tempy = ray.x * st + ray.y * ct;
-        ray.x = tempx;
-        ray.y = tempy;
-        //add ray to path end
-        ray = ray.plus(p2.path.end);
-        //new path is end to ray.
-        snap_to_tri_grid(ray);
-        p2.nextPath = new Line(p2.path.end.x, p2.path.end.y, ray.x, ray.y);
-        wrap_path(p2.nextPath);
+    else if (p2.keyPress(event.keyCode)) {
+        log('p2 handled key ' + c);
     }
 }
 
@@ -508,18 +568,18 @@ function generate_random_vertex() {
 }
 
 function update_player(player, delta) {
-    if (player.pos < 1) {
+    if (player.pos < 1) { //Player is still on current line
         return;
     }
-
+    //Player has reached (or passed) end vertex
     player.pos -= 1;
     player.path = player.nextPath;
     newstart = player.path.end;
     newend = player.path.end.minus(player.path.start).plus(player.path.end);
     snap_to_tri_grid(newend);
     player.nextPath = new Line(newstart.x, newstart.y, newend.x, newend.y);
-    wrap_path(player.nextPath);
 
+    wrap_path(player.nextPath);
     Object.keys(player.effects).forEach(function (effect) {
         //effect is a key in the player.effects dictionary
         player.effects[effect] -= 1;
@@ -568,6 +628,8 @@ function physics(delta) {
     g_pos += gameSpeed * delta / 1000;
     p1.setPos(g_pos);
     p2.setPos(g_pos);
+    
+    //@Confused What is this for?
     while (g_pos > 1) {
         g_pos -= 1;
     }
@@ -597,4 +659,8 @@ function mainloop(timestamp) {
         renderGame();
     }
     window.requestAnimationFrame(mainloop);
+}
+
+function log(str) {
+    console.log(str);
 }
