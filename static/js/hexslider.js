@@ -7,9 +7,10 @@ S Idea re walls:
     Player does not "turn", player creates wall at vertex and bounces off of it.
     Walls should not last forever.
     Walls influence all players that run into them.
-    Checking for collision at vertex allows us to drop the whole player.nextPath concept.
 S Maybe change global e (triangle height) to actually represent triangle edge length. Thoughts?
-
+S Problem!!!! If players end with the same position and direction, they perfectly cover each other
+  and can't get away (without something special like a powerup that applies to only one of them).
+  To each player, it looks like the other one died.
 */
 
 var lcanvas;
@@ -90,9 +91,7 @@ function init() {
     p2.keyRight = 39;
     p_default = new Player();
     p2.path = new Line(2 * s, 0, 2 * s - t, 0);
-    p2.nextPath = new Line(2 * s - t, 0, 2 * s - 2 * t, 0);
     p1.path = new Line(-2 * s, 0, -2 * s + t, 0);
-    p1.nextPath = new Line(-2 * s + t, 0, -2 * s + 2 * t, 0);
 
     window.onkeydown = event_keydown;
     window.onmousedown = event_mdown;
@@ -128,7 +127,7 @@ function Wall(pos, orient, size) {
     this.maxSize = size || t/6;
     //this.ttl = 1000;
 }
-Wall.prototype.ttl = 1000; //ttl is decremented over time for each Wall
+Wall.prototype.ttl = 2000; //ttl is decremented over time for each Wall
 Wall.prototype.tIn = 50;
 Wall.prototype.tOut = 250;
 
@@ -210,6 +209,7 @@ function Line(x1, y1, x2, y2) {
     "use strict";
     this.start = new Point(x1, y1);
     this.end = new Point(x2, y2);
+	//@TODO This length is not updated if start or end are modified after Line creation (it's not a function)
     this.length = Math.sqrt((x2-x1)*(x2-x1) + (y2-y1)*(y2-y1));
     this.reverse = function() {
         var temp = this.start;
@@ -233,7 +233,6 @@ function Player() {
     this.speedMultiplier = 12.0;
     this.speedOffset = 0.0;
     this.path = new Line(-2 * s, 0, 2 * s, 0);
-    this.nextPath = null;
     this.effects = {};
     this.effectsQueue = [];
     this.getPos = function() { //@Rename to getCoords? Player pos is percent along line
@@ -256,24 +255,7 @@ function Player() {
         if (key === this.keyLeft) direction = 1;
         if (key === this.keyRight) direction = -1;
         if (!direction) return false; //Keypress not handled
-        
-        //find path ray end-start
-        var ray = this.path.end.minus(this.path.start);
-        //rotate path 2pi/3 rad
-        var angle = direction * 2 * Math.PI/3;
-        var ct = Math.cos(angle);
-        var st = Math.sin(angle);
-        var tempx = ray.x * ct - ray.y * st;
-        var tempy = ray.x * st + ray.y * ct;
-        ray.x = tempx;
-        ray.y = tempy;
-        //add ray to path end
-        ray = ray.plus(this.path.end);
-        //new path is end to ray.
-        snap_to_tri_grid(ray);
-        this.nextPath = new Line(this.path.end.x, this.path.end.y, ray.x, ray.y);
-        wrap_path(this.nextPath);
-        
+		
         //Path angle is either +1 to left or -1 to right. +2 is like -1 but without risk of going negative
         var pa = (getPathAngle(this.path) + ((direction == 1) ? 1 : 2)) % 3;
         walls.push(new Wall(this.path.end, pa));
@@ -602,6 +584,11 @@ function update_player(player, delta) {
         return;
     }
 	
+	//Player has reached (or passed) end vertex
+    player.pos -= 1;
+	
+	//Look for walls at this vertex
+	
     // 4 2    1 2
     //    \  /
     //8 3 -  - 0  1
@@ -659,24 +646,17 @@ function update_player(player, delta) {
 		snap_to_tri_grid(ray);
 		player.path = new Line(player.path.end.x, player.path.end.y, ray.x, ray.y);
 		wrap_path(player.path);
-		player.nextPath = player.path;
-	} else if (turnRight && turnLeft) {
-		//Turn around
+	} else if (turnRight && turnLeft) {	//Turn around
 		var tmp = player.path.start;
 		player.path.start = player.path.end;
 		player.path.end = tmp;
-		player.nextPath = player.path;
+	} else {		//Keep going straight
+		var newEnd = player.path.end.plus(player.path.end.minus(player.path.start));
+		snap_to_tri_grid(newEnd);
+		player.path = new Line(player.path.end.x, player.path.end.y, newEnd.x, newEnd.y);
+		wrap_path(player.path);
 	}
-	
-	//Player has reached (or passed) end vertex
-    player.pos -= 1;
-    player.path = player.nextPath;
-    newstart = player.path.end;
-    newend = player.path.end.minus(player.path.start).plus(player.path.end);
-    snap_to_tri_grid(newend);
-    player.nextPath = new Line(newstart.x, newstart.y, newend.x, newend.y);
 
-    wrap_path(player.nextPath);
     Object.keys(player.effects).forEach(function (effect) {
         //effect is a key in the player.effects dictionary
         player.effects[effect] -= 1;
