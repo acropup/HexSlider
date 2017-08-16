@@ -209,7 +209,7 @@ function Line(x1, y1, x2, y2) {
     "use strict";
     this.start = new Point(x1, y1);
     this.end = new Point(x2, y2);
-	//@TODO This length is not updated if start or end are modified after Line creation (it's not a function)
+    //@TODO This length is not updated if start or end are modified after Line creation (it's not a function)
     this.length = Math.sqrt((x2-x1)*(x2-x1) + (y2-y1)*(y2-y1));
     this.reverse = function() {
         var temp = this.start;
@@ -255,7 +255,7 @@ function Player() {
         if (key === this.keyLeft) direction = 1;
         if (key === this.keyRight) direction = -1;
         if (!direction) return false; //Keypress not handled
-		
+        
         //Path angle is either +1 to left or -1 to right. +2 is like -1 but without risk of going negative
         var pa = (getPathAngle(this.path) + ((direction == 1) ? 1 : 2)) % 3;
         walls.push(new Wall(this.path.end, pa));
@@ -541,8 +541,8 @@ function wrap_path(path) {
     path.start.x = -path.start.x;
     path.start.y = -path.start.y;
 
-	snap_to_tri_grid(path.start);
-	snap_to_tri_grid(path.end);
+    snap_to_tri_grid(path.start);
+    snap_to_tri_grid(path.end);
 }
 
 function wrap_point(p) {
@@ -569,7 +569,7 @@ function wrap_point(p) {
     //the points are rotated pi rads now. Rotate them back!
     p.x = -p.x;
     p.y = -p.y;
-	snap_to_tri_grid(p);
+    snap_to_tri_grid(p);
 }
 
 function generate_random_vertex() {
@@ -583,79 +583,79 @@ function update_player(player, delta) {
     if (player.pos < 1) { //Player is still on current line
         return;
     }
-	
-	//Player has reached (or passed) end vertex
+    
+    //Player has reached (or passed) end vertex
     player.pos -= 1;
-	
-	//Look for walls at this vertex
-	
+    
+    //Look for walls at this vertex
+    
     // 4 2    1 2
     //    \  /
     //8 3 -  - 0  1
     //    /  \
     //16 4    5 32
-	var wallAngles = 0;
-	var turnLeft = false;
-	var turnRight = false;
-	var ignoringParallel = false;
-	var pd = getPathAngle(player.path); // player direction
-	
-	var leftWall = (pd + 1) % 3; //This wall orientation # will bounce player left
-	var rightWall = (pd + 2) % 3;
-	var parallelWall = pd % 3;
-	walls.forEach(function (wall) {
-		if (new Line(player.path.end.x, player.path.end.y, wall.x, wall.y).length < 10) {
-			var o = wall.orientation;
-			turnLeft |= (o == leftWall);
-			turnRight|= (o == rightWall);
-			ignoringParallel |= (o == parallelWall);
-			
-		}
-	});
-	if (turnRight && turnLeft) {
-			//Turn around
-			log('turn around');
-			pd += 3;
-	} else if (turnRight) {
-		//Turn Right
-		log('turn right');
-		pd += 4; //Same as -2 in mod 6
-	} else if (turnLeft) {
-		//Turn Left
-		log('turn left');
-		pd += 2;
-	}
-	if (pd >= 6) pd -= 6;
-	log('go ' + pd);
-	
-	if (turnRight ^ turnLeft) {
-		//find path ray end-start
-		var ray = player.path.end.minus(player.path.start);
-		//rotate path 2pi/3 rad
-		var angle = 2 * Math.PI/3;
-		if (turnRight) angle = -angle;
-		var ct = Math.cos(angle);
-		var st = Math.sin(angle);
-		var tempx = ray.x * ct - ray.y * st;
-		var tempy = ray.x * st + ray.y * ct;
-		ray.x = tempx;
-		ray.y = tempy;
-		//add ray to path end
-		ray = ray.plus(player.path.end);
-		//new path is end to ray.
-		snap_to_tri_grid(ray);
-		player.path = new Line(player.path.end.x, player.path.end.y, ray.x, ray.y);
-		wrap_path(player.path);
-	} else if (turnRight && turnLeft) {	//Turn around
-		var tmp = player.path.start;
-		player.path.start = player.path.end;
-		player.path.end = tmp;
-	} else {		//Keep going straight
-		var newEnd = player.path.end.plus(player.path.end.minus(player.path.start));
-		snap_to_tri_grid(newEnd);
-		player.path = new Line(player.path.end.x, player.path.end.y, newEnd.x, newEnd.y);
-		wrap_path(player.path);
-	}
+    var wallAngles = 0;
+    var turnLeft = false;
+    var turnRight = false;
+    var ignoringParallel = false;
+    var pd = getPathAngle(player.path); // player direction
+    
+    var leftWall = (pd + 1) % 3; //This wall orientation # will bounce player left
+    var rightWall = (pd + 2) % 3;
+    var parallelWall = pd % 3;
+    walls.forEach(function (wall) {
+        if (new Line(player.path.end.x, player.path.end.y, wall.x, wall.y).length < 10) {
+            var o = wall.orientation;
+            turnLeft |= (o == leftWall);
+            turnRight|= (o == rightWall);
+            ignoringParallel |= (o == parallelWall);
+            
+        }
+    });
+    if (turnRight && turnLeft) {
+            //Turn around
+            log('turn around');
+            pd += 3;
+    } else if (turnRight) {
+        //Turn Right
+        log('turn right');
+        pd += 4; //Same as -2 in mod 6
+    } else if (turnLeft) {
+        //Turn Left
+        log('turn left');
+        pd += 2;
+    }
+    if (pd >= 6) pd -= 6;
+    log('go ' + pd);
+    
+    if (turnRight ^ turnLeft) {
+        //find path ray end-start
+        var ray = player.path.end.minus(player.path.start);
+        //rotate path 2pi/3 rad
+        var angle = 2 * Math.PI/3;
+        if (turnRight) angle = -angle;
+        var ct = Math.cos(angle);
+        var st = Math.sin(angle);
+        var tempx = ray.x * ct - ray.y * st;
+        var tempy = ray.x * st + ray.y * ct;
+        ray.x = tempx;
+        ray.y = tempy;
+        //add ray to path end
+        ray = ray.plus(player.path.end);
+        //new path is end to ray.
+        snap_to_tri_grid(ray);
+        player.path = new Line(player.path.end.x, player.path.end.y, ray.x, ray.y);
+        wrap_path(player.path);
+    } else if (turnRight && turnLeft) {    //Turn around
+        var tmp = player.path.start;
+        player.path.start = player.path.end;
+        player.path.end = tmp;
+    } else {        //Keep going straight
+        var newEnd = player.path.end.plus(player.path.end.minus(player.path.start));
+        snap_to_tri_grid(newEnd);
+        player.path = new Line(player.path.end.x, player.path.end.y, newEnd.x, newEnd.y);
+        wrap_path(player.path);
+    }
 
     Object.keys(player.effects).forEach(function (effect) {
         //effect is a key in the player.effects dictionary
