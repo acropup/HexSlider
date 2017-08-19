@@ -40,6 +40,22 @@ var testPoint = new Point(-1000, -1000);
 var candies = [];
 var walls = [];
 
+//Key handling reference: http://unixpapa.com/js/key.html
+var KEY_CODE = {
+    Enter: 13,
+    Space: 32,
+    Tab:    9,
+    Esc:   27,
+    Shift: 16,
+    Ctrl:  17,
+    Alt:   18,
+    Arrow_Left:  37,
+    Arrow_Up:    38,
+    Arrow_Right: 39,
+    Arrow_Down:  40
+    };
+if (Object.freeze) Object.freeze(KEY_CODE);
+
 function onResize() {
     "use strict";
     lcanvas.width = window.innerWidth * 0.48;
@@ -84,11 +100,11 @@ function init() {
     candies.push(new Candy(generate_random_vertex()));
 
     p1 = new Player();
-    p1.keyLeft = 65;  //a=65; d=68;
-    p1.keyRight = 68;
+    p1.keyLeft = 'A'.charCodeAt();  //a=65; d=68;
+    p1.keyRight = 'D'.charCodeAt();
     p2 = new Player();
-    p2.keyLeft = 37;  //<=37; >=39;
-    p2.keyRight = 39;
+    p2.keyLeft = KEY_CODE.Arrow_Left;  //<=37; >=39;
+    p2.keyRight = KEY_CODE.Arrow_Right;
     p_default = new Player();
     p2.path = new Line(2 * s, 0, 2 * s - t, 0);
     p1.path = new Line(-2 * s, 0, -2 * s + t, 0);
