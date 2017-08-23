@@ -13,10 +13,59 @@ S Problem!!!! If players end with the same position and direction, they perfectl
   To each player, it looks like the other one died.
 */
 
+/*
+The data representation of objects is as if they are on a grid, or interpolating
+between points along the grid. The grid has edges connecting the vertices like so:
+ __ __ __ __ __
+|\ |\ |\ |\ |\ |
+|_\|_\|_\|_\|_\|
+|\ |\ |\ |\ |\ |
+|_\|_\|_\|_\|_\|
+|\ |\ |\ |\ |\ |
+|_\|_\|_\|_\|_\|
+
+When the grid is translated into screen coordinates, it is sheared into a right-leaning rhombus:
+         __  __  __  __  __
+       /\  /\  /\  /\  /\  /
+      /__\/__\/__\/__\/__\/
+     /\  /\  /\  /\  /\  /
+    /__\/__\/__\/__\/__\/
+   /\  /\  /\  /\  /\  /
+  /__\/__\/__\/__\/__\/
+
+*/
+function toScreenSpace(gc) {
+	//To get screen coordinates from grid coordinates, scale and shear into right/leaning rhombus
+	var sc = new Point();
+	sc.x = gc.x * edge_len + gc.y * half_edge_len;
+	sc.y = gc.y * tri_height;
+	return sc;
+}
+function toGridSpace(sc) {
+	//Screen coordinates to grid coordinates
+	var gc = new Point();
+	gc.y = sc.y / tri_height;
+	gc.x = (sc.x - gc.y * half_edge_len) / edge_len;
+	return gc;
+}
+function toNearestGridPoint(sc) {
+	//Screen coordinates to nearest grid point
+	var gc = toGridSpace(sc);
+	gc.x = Math.round(gc.x);
+	gc.y = Math.round(gc.y);
+	return gc;
+}
+
 var lcanvas;
 var rcanvas;
 var lctx;
 var rctx;
+
+const grid_max_x = 10;
+const grid_max_y = 10;
+const edge_len = 300;
+const half_edge_len = edge_len / 2;
+const tri_height = Math.sqrt(edge_len*edge_len*3/4);
 
 const r = 300; //circumscribed hexagonal playing field radius (distance from center to middle of edge, not center to corner)
 const e = 100; //triangle height; should evenly divide `r`
@@ -278,6 +327,29 @@ function Player() {
         
         return true; //Keypress handled
     };
+	
+	this.trajectory = 0; 				//Value 0-5, signifying which direction player is travelling
+	this.startVertex = new Point(1, 1);	//Player is moving away from this vertex (grid space)
+	this.endVertex = new Point(2, 1);	//Player is moving toward this vertex (grid space)
+	this.percent_travelled = 0;	//How far player is between startVertex (0) and endVertex (1)
+	this.gridCoord;				//Current player coordinates, in grid space
+	this.screenCoord;			//Current player coordinates, in screen space
+	this.setTrajectory = function(newTrajectory) {
+		this.trajectory = newTrajectory;
+		this.startVertex = this.endVertex;
+		var trajectory_dx = [1, 0, -1,  0,  0,  1];
+		var trajectory_dy = [0, 1,  1, -1, -1, -1];
+		var dx = trajectory_dx[newTrajectory];
+		var dy = trajectory_dy[newTrajectory];
+		this.endVertex = this.endVertex.plus(new Point(dx, dy));
+	};
+	this.step = function(pct) {
+		//Call this every frame to update player's position
+		//Step forward pct% of an edge length
+		this.percent_travelled += pct;
+		this.gridCoord = this.startVertex.lerp(this.endVertex, this.percent_travelled);
+		this.screenCoord = toScreenSpace(this.gridCoord);
+	}
     
 }
 
@@ -331,6 +403,12 @@ function renderBG(context) {
     var w;
     context.save();
     context.beginPath();
+	
+	//@TEST CODE
+	renderTriangleGrid(context);
+    context.lineWidth = 1;
+    context.stroke();
+	
     //draw horizontal lines
     for (a = -r; a <= r; a += e) {
         w = (r - Math.abs(a)) / r * s + s;
@@ -351,6 +429,50 @@ function renderBG(context) {
         context.moveTo(-w, a);
         context.lineTo( w, a);
     }
+	
+    context.stroke();
+    context.restore();
+}
+
+//@EXPERIMENTAL
+function renderTriangleGrid(context) {
+    "use strict";
+    context.save();
+    context.beginPath();
+    context.scale(1, -1);
+    context.translate(-lcanvas.width / 2, -lcanvas.height / 2); //ok because lcanvas and rcanvas dimensions are equal
+	context.lineWidth = 1;
+	
+	var edge = 100;
+	var half_edge = edge / 2;
+	var height = Math.sqrt(edge*edge*3/4);
+	var uporient = true;
+	var row_max = lcanvas.height / height-1; //TODO: remove -1, just there for debugging
+	for(var tri_row = 0; tri_row < row_max; tri_row++) {
+		var row_odd = tri_row & 1;
+		var col_max = (-2 + lcanvas.width / half_edge) & ~1 -row_odd;
+		for(var tri_col = -row_odd; tri_col < col_max; tri_col++) {
+			var x1 = tri_col * half_edge + (tri_row % 2 ? half_edge : 0);
+			var x2 = x1 + half_edge;
+			var x3 = x2 + half_edge;
+			var y1 = tri_row * height;
+			var y2 = y1 + height;
+			if (uporient) { //draw triangle with pointy top
+				context.moveTo(x2, y1);
+				context.lineTo(x3, y2);
+				context.lineTo(x1, y2);
+				context.lineTo(x2, y1);
+			} else {			//draw triangle with pointy bottom
+				context.moveTo(x1, y1);
+				context.lineTo(x3, y1);
+				context.lineTo(x2, y2);
+				context.lineTo(x1, y1);
+			}
+			uporient = !uporient;
+		}
+		uporient = !uporient
+	}
+	
     context.stroke();
     context.restore();
 }
@@ -596,6 +718,9 @@ function generate_random_vertex() {
 }
 
 function update_player(player, delta) {
+	var msPerEdge = 750;
+	//TODO: Should player position be updated here or in physics()?
+	player.step(delta/msPerEdge);
     if (player.pos < 1) { //Player is still on current line
         return;
     }
@@ -722,7 +847,6 @@ function physics(delta) {
     p1.setPos(g_pos);
     p2.setPos(g_pos);
     
-    //@Confused What is this for?
     while (g_pos > 1) {
         g_pos -= 1;
     }
@@ -756,6 +880,5 @@ function mainloop(timestamp) {
     window.requestAnimationFrame(mainloop);
 }
 
-function log(str) {
-    console.log(str);
-}
+//To save on typing
+var log = console.log;
