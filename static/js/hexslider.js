@@ -63,7 +63,7 @@ var rctx;
 
 const grid_max_x = 10;
 const grid_max_y = 10;
-const edge_len = 300;
+const edge_len = 115.47;
 const half_edge_len = edge_len / 2;
 const tri_height = Math.sqrt(edge_len*edge_len*3/4);
 
@@ -155,8 +155,14 @@ function init() {
     p2.keyLeft = KEY_CODE.Arrow_Left;  //<=37; >=39;
     p2.keyRight = KEY_CODE.Arrow_Right;
     p_default = new Player();
-    p2.path = new Line(2 * s, 0, 2 * s - t, 0);
+	p1.endVertex = new Point(-2, 0);
+	p1.setTrajectory(0);
+	p1.step(0);
+	p2.endVertex = new Point(2, 0);
+	p2.setTrajectory(3);
+	p2.step(0);
     p1.path = new Line(-2 * s, 0, -2 * s + t, 0);
+    p2.path = new Line(2 * s, 0, 2 * s - t, 0);
 
     window.onkeydown = event_keydown;
     window.onmousedown = event_mdown;
@@ -186,7 +192,7 @@ function Candy(p) {
 
 function Wall(pos, orient, size) {
     //Size param is optional
-    this.x = pos.x;
+    this.x = pos.x;	//Coordinates are in grid space
     this.y = pos.y;
     this.orientation = orient; //Should be 0-2... 0: --, 1: /, 2: \ .
     this.maxSize = size || t/6;
@@ -226,18 +232,19 @@ function renderWalls(context) {
         }
         var hlx = hl * xCoef;  //half-length x when wall on an angle
         var hly = hl * yCoef;
+		var w = toScreenSpace(wall);
         switch(wall.orientation) {
             case 0: //Horizontal Wall
-                context.moveTo(wall.x-hl, wall.y);
-                context.lineTo(wall.x+hl, wall.y);
+                context.moveTo(w.x-hl, w.y);
+                context.lineTo(w.x+hl, w.y);
                 break;
             case 1: //Forwardslash Wall
-                context.moveTo(wall.x-hlx, wall.y-hly);
-                context.lineTo(wall.x+hlx, wall.y+hly);
+                context.moveTo(w.x-hlx, w.y-hly);
+                context.lineTo(w.x+hlx, w.y+hly);
                 break;
             case 2: //Backslash Wall
-                context.moveTo(wall.x-hlx, wall.y+hly);
-                context.lineTo(wall.x+hlx, wall.y-hly);
+                context.moveTo(w.x-hlx, w.y+hly);
+                context.lineTo(w.x+hlx, w.y-hly);
                 break;
         }
     });
@@ -322,8 +329,8 @@ function Player() {
         if (!direction) return false; //Keypress not handled
         
         //Path angle is either +1 to left or -1 to right. +2 is like -1 but without risk of going negative
-        var pa = (getPathAngle(this.path) + ((direction == 1) ? 1 : 2)) % 3;
-        walls.push(new Wall(this.path.end, pa));
+        var pa = (this.trajectory + ((direction == 1) ? 1 : 2)) % 3;
+        walls.push(new Wall(this.endVertex, pa));
         
         return true; //Keypress handled
     };
@@ -381,7 +388,6 @@ function getPathAngle(line) {
             else        return 4;
         }
     }
-}    
 
 function setupTransform(player, ctx) {
     "use strict";
@@ -443,7 +449,6 @@ function renderTriangleGrid(context) {
     context.translate(-lcanvas.width / 2, -lcanvas.height / 2); //ok because lcanvas and rcanvas dimensions are equal
 	context.lineWidth = 1;
 	
-	var edge = 100;
 	var half_edge = edge / 2;
 	var height = Math.sqrt(edge*edge*3/4);
 	var uporient = true;
@@ -718,13 +723,9 @@ function generate_random_vertex() {
 }
 
 function update_player(player, delta) {
-	var msPerEdge = 750;
 	//TODO: Should player position be updated here or in physics()?
 	player.step(delta/msPerEdge);
-    if (player.pos < 1) { //Player is still on current line
         return;
-    }
-    
     //Player has reached (or passed) end vertex
     player.pos -= 1;
     
@@ -739,13 +740,11 @@ function update_player(player, delta) {
     var turnLeft = false;
     var turnRight = false;
     var ignoringParallel = false;
-    var pd = getPathAngle(player.path); // player direction
     
     var leftWall = (pd + 1) % 3; //This wall orientation # will bounce player left
     var rightWall = (pd + 2) % 3;
     var parallelWall = pd % 3;
     walls.forEach(function (wall) {
-        if (new Line(player.path.end.x, player.path.end.y, wall.x, wall.y).length < 10) {
             var o = wall.orientation;
             turnLeft |= (o == leftWall);
             turnRight|= (o == rightWall);
@@ -767,8 +766,6 @@ function update_player(player, delta) {
         pd += 2;
     }
     if (pd >= 6) pd -= 6;
-    log('go ' + pd);
-    
     if (turnRight ^ turnLeft) {
         //find path ray end-start
         var ray = player.path.end.minus(player.path.start);
@@ -797,7 +794,6 @@ function update_player(player, delta) {
         player.path = new Line(player.path.end.x, player.path.end.y, newEnd.x, newEnd.y);
         wrap_path(player.path);
     }
-
     Object.keys(player.effects).forEach(function (effect) {
         //effect is a key in the player.effects dictionary
         player.effects[effect] -= 1;
