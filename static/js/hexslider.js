@@ -81,7 +81,6 @@ var time_old = -1;
 var p1 = {};
 var p2 = {};
 var p_default = {};
-var g_pos = 0.0;
 var gameSpeed = 0.1;
 
 var testPoint = new Point(-1000, -1000);
@@ -298,7 +297,6 @@ function Line(x1, y1, x2, y2) {
 
 function Player() {
     "use strict";
-    this.pos = 0.5;
     this.radius = 10;
     this.keyLeft;
     this.keyRight;
@@ -307,9 +305,6 @@ function Player() {
     this.path = new Line(-2 * s, 0, 2 * s, 0);
     this.effects = {};
     this.effectsQueue = [];
-    this.getPos = function() { //@Rename to getCoords? Player pos is percent along line
-        return this.path.lerp(this.pos);
-    };
     this.setPos = function(newPos) {
         var tempPos = newPos;
         tempPos *= this.speedMultiplier;
@@ -344,11 +339,14 @@ function Player() {
 	this.setTrajectory = function(newTrajectory) {
 		this.trajectory = newTrajectory;
 		this.startVertex = this.endVertex;
-		var trajectory_dx = [1, 0, -1,  0,  0,  1];
-		var trajectory_dy = [0, 1,  1, -1, -1, -1];
+		//TODO How do we make sure to wrap the whole path properly. Joe probably already solved it in wrap_path but I am le tired.
+		wrapPoint(this.startVertex);
+		var trajectory_dx = [1, 0, -1, -1,  0,  1];
+		var trajectory_dy = [0, 1,  1,  0, -1, -1];
 		var dx = trajectory_dx[newTrajectory];
 		var dy = trajectory_dy[newTrajectory];
 		this.endVertex = this.endVertex.plus(new Point(dx, dy));
+		this.step(-1); //Reset percent_travelled and set new coords
 	};
 	this.step = function(pct) {
 		//Call this every frame to update player's position
@@ -358,6 +356,14 @@ function Player() {
 		this.screenCoord = toScreenSpace(this.gridCoord);
 	}
     
+}
+
+function wrapPoint(p) {
+	if (p.x < 0) p.x += grid_max_x;
+	else if (p.x > grid_max_x - 1) p.x -= grid_max_x;
+	
+	if (p.y < 0) p.y += grid_max_y;
+	else if (p.y > grid_max_y - 1) p.y -= grid_max_y;
 }
 
 function getPathAngleIgnoreDirection(line) {
@@ -388,6 +394,7 @@ function getPathAngle(line) {
             else        return 4;
         }
     }
+}
 
 function setupTransform(player, ctx) {
     "use strict";
@@ -397,7 +404,7 @@ function setupTransform(player, ctx) {
 
     //track the player
     if (tracking) {
-        var pos = player.getPos();
+        var pos = player.screenCoord;
         ctx.translate(-pos.x, -pos.y);
     }
 }
@@ -449,6 +456,7 @@ function renderTriangleGrid(context) {
     context.translate(-lcanvas.width / 2, -lcanvas.height / 2); //ok because lcanvas and rcanvas dimensions are equal
 	context.lineWidth = 1;
 	
+	var edge = edge_len;//100;
 	var half_edge = edge / 2;
 	var height = Math.sqrt(edge*edge*3/4);
 	var uporient = true;
@@ -485,8 +493,17 @@ function renderTriangleGrid(context) {
 function renderPlayer(player, context) {
     "use strict";
     context.beginPath();
-    var pos = player.getPos();
+    var pos = player.screenCoord;
     context.arc(pos.x, pos.y, player.radius, 0, 2 * Math.PI, false);
+    context.stroke();
+	//@TEST CODE
+    context.beginPath();
+    pos = toScreenSpace(player.startVertex);
+    context.arc(pos.x, pos.y, player.radius-5, 0, 2 * Math.PI, false);
+    context.stroke();
+    context.beginPath();
+    pos = toScreenSpace(player.endVertex);
+    context.arc(pos.x, pos.y, player.radius-5, 0, 2 * Math.PI, false);
     context.stroke();
 }
 
@@ -549,14 +566,15 @@ function renderTiledGame() {
     rctx.lineWidth = 5;
     lctx.strokeStyle = "#009900";
     rctx.strokeStyle = "#009900";
-    lctx.strokeRect(testPoint.x - 10, testPoint.y - 10, 20, 20);
-    rctx.strokeRect(testPoint.x - 10, testPoint.y - 10, 20, 20);
+    lctx.strokeRect(testPoint.x - 5, testPoint.y - 5, 10, 10);
+    rctx.strokeRect(testPoint.x - 5, testPoint.y - 5, 10, 10);
 }
 
 function renderCandies(ctx) {
     ctx.strokeStyle = "#009900";
     candies.forEach(function (candy) {
-        ctx.strokeRect(candy.x - 10, candy.y - 10, 20, 20);
+		var p = toScreenSpace(new Point(candy.x, candy.y));
+        ctx.strokeRect(p.x - 10, p.y - 10, 20, 20);
     });
 }
 
@@ -587,8 +605,8 @@ function renderGame() {
 
     lctx.strokeStyle = "#009900";
     rctx.strokeStyle = "#009900";
-    lctx.strokeRect(testPoint.x - 10, testPoint.y - 10, 20, 20);
-    rctx.strokeRect(testPoint.x - 10, testPoint.y - 10, 20, 20);
+    lctx.strokeRect(testPoint.x - 5, testPoint.y - 5, 10, 10);
+    rctx.strokeRect(testPoint.x - 5, testPoint.y - 5, 10, 10);
 
     renderCandies(rctx);
     renderCandies(lctx);
@@ -621,11 +639,12 @@ function event_mdown(mouseEvent) {
     testPoint = mouseEvent_to_world(mouseEvent, rcanvas);
     if (tracking) {
         if (mouseEvent.clientX >= rcanvas.offsetLeft) {
-            testPoint = testPoint.plus(p2.getPos());
+            testPoint = testPoint.plus(p2.screenCoord);
         } else {
-            testPoint = testPoint.plus(p1.getPos());
+            testPoint = testPoint.plus(p1.screenCoord);
         }
     }
+	candies.push(new Candy(toNearestGridPoint(testPoint)));
     snap_to_tri_grid(testPoint);
 }
 
@@ -723,11 +742,11 @@ function generate_random_vertex() {
 }
 
 function update_player(player, delta) {
+	var msPerEdge = 835;
 	//TODO: Should player position be updated here or in physics()?
 	player.step(delta/msPerEdge);
-        return;
-    //Player has reached (or passed) end vertex
-    player.pos -= 1;
+	if (player.percent_travelled < 1) return; //Player is still on current line
+    //Player has reached (or passed) endVertex
     
     //Look for walls at this vertex
     
@@ -740,11 +759,14 @@ function update_player(player, delta) {
     var turnLeft = false;
     var turnRight = false;
     var ignoringParallel = false;
+    var pd = player.trajectory; //getPathAngle(player.path); // player direction
     
     var leftWall = (pd + 1) % 3; //This wall orientation # will bounce player left
     var rightWall = (pd + 2) % 3;
     var parallelWall = pd % 3;
     walls.forEach(function (wall) {
+        if (player.endVertex.x == wall.x && player.endVertex.y == wall.y) {
+		//(new Line(player.path.end.x, player.path.end.y, wall.x, wall.y).length < 10) {
             var o = wall.orientation;
             turnLeft |= (o == leftWall);
             turnRight|= (o == rightWall);
@@ -766,6 +788,8 @@ function update_player(player, delta) {
         pd += 2;
     }
     if (pd >= 6) pd -= 6;
+	player.setTrajectory(pd);
+    /*
     if (turnRight ^ turnLeft) {
         //find path ray end-start
         var ray = player.path.end.minus(player.path.start);
@@ -794,6 +818,7 @@ function update_player(player, delta) {
         player.path = new Line(player.path.end.x, player.path.end.y, newEnd.x, newEnd.y);
         wrap_path(player.path);
     }
+*/
     Object.keys(player.effects).forEach(function (effect) {
         //effect is a key in the player.effects dictionary
         player.effects[effect] -= 1;
@@ -827,9 +852,10 @@ function update_player(player, delta) {
 }
 
 function collide_candies(player) {
-    var pos = player.getPos();
+    var pos = player.gridCoord;
     candies = candies.filter(function (candy) {
-        if ((pos.x - candy.x) * (pos.x - candy.x) + (pos.y - candy.y) * (pos.y - candy.y) < 5) {
+		//TODO make this test better. maybe only test when player crosses a vertex
+        if ((pos.x - candy.x) * (pos.x - candy.x) + (pos.y - candy.y) * (pos.y - candy.y) < .01) {
             player.effectsQueue.push(candy.effect);
             return false;
         }
@@ -839,13 +865,6 @@ function collide_candies(player) {
 
 function physics(delta) {
     "use strict";
-    g_pos += gameSpeed * delta / 1000;
-    p1.setPos(g_pos);
-    p2.setPos(g_pos);
-    
-    while (g_pos > 1) {
-        g_pos -= 1;
-    }
 
     collide_candies(p1);
     collide_candies(p2);
