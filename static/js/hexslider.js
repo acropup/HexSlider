@@ -61,8 +61,8 @@ var rcanvas;
 var lctx;
 var rctx;
 
-const grid_max_x = 10;
-const grid_max_y = 10;
+const grid_max_x = 4;
+const grid_max_y = 4;
 const edge_len = 115.47;
 const half_edge_len = edge_len / 2;
 const tri_height = Math.sqrt(edge_len*edge_len*3/4);
@@ -160,8 +160,8 @@ function init() {
 	p2.endVertex = new Point(2, 0);
 	p2.setTrajectory(3);
 	p2.step(0);
-    p1.path = new Line(-2 * s, 0, -2 * s + t, 0);
-    p2.path = new Line(2 * s, 0, 2 * s - t, 0);
+    //p1.path = new Line(-2 * s, 0, -2 * s + t, 0);
+    //p2.path = new Line(2 * s, 0, 2 * s - t, 0);
 
     window.onkeydown = event_keydown;
     window.onmousedown = event_mdown;
@@ -271,6 +271,9 @@ function Point(x, y) {
         return new Point(this.x + percent * (p2.x - this.x),
                         this.y + percent * (p2.y - this.y));
     }
+	this.clone = function() {
+		return new Point(this.x, this.y);
+	}
     this.toString = function() {
         return "(" + this.x + ", " + this.y + ")";
     }
@@ -302,7 +305,7 @@ function Player() {
     this.keyRight;
     this.speedMultiplier = 12.0;
     this.speedOffset = 0.0;
-    this.path = new Line(-2 * s, 0, 2 * s, 0);
+    //this.path = new Line(-2 * s, 0, 2 * s, 0);
     this.effects = {};
     this.effectsQueue = [];
     this.setPos = function(newPos) {
@@ -325,7 +328,9 @@ function Player() {
         
         //Path angle is either +1 to left or -1 to right. +2 is like -1 but without risk of going negative
         var pa = (this.trajectory + ((direction == 1) ? 1 : 2)) % 3;
-        walls.push(new Wall(this.endVertex, pa));
+		//Wrap in case endVertex is on grid_max
+		var wp = wrapPoint(this.endVertex.clone());
+        walls.push(new Wall(wp, pa));
         
         return true; //Keypress handled
     };
@@ -339,14 +344,15 @@ function Player() {
 	this.setTrajectory = function(newTrajectory) {
 		this.trajectory = newTrajectory;
 		this.startVertex = this.endVertex;
-		//TODO How do we make sure to wrap the whole path properly. Joe probably already solved it in wrap_path but I am le tired.
-		wrapPoint(this.startVertex);
 		var trajectory_dx = [1, 0, -1, -1,  0,  1];
 		var trajectory_dy = [0, 1,  1,  0, -1, -1];
 		var dx = trajectory_dx[newTrajectory];
 		var dy = trajectory_dy[newTrajectory];
 		this.endVertex = this.endVertex.plus(new Point(dx, dy));
+		//TODO How do we make sure to wrap the whole path properly. Joe probably already solved it in wrap_path but I am le tired.
+		wrapPath(this.startVertex, this.endVertex);
 		this.step(-1); //Reset percent_travelled and set new coords
+		if (this == p1) log('player1 at ' + this.startVertex + ' screen ' + this.screenCoord);
 	};
 	this.step = function(pct) {
 		//Call this every frame to update player's position
@@ -358,12 +364,44 @@ function Player() {
     
 }
 
+function wrapPath(start, end) {
+	//NOTE: this function assumes start/end are never more than 1 grid dimesion away!
+	//Check if end is out of bounds and needs wrapping. Allow end to be within
+	//[0, grid_max_x] and [0, grid_max_y] (inclusive of upper range).
+	//We assume that start is always within bounds, because all starts were once ends.
+	//If both start and end are along grid_max_x or grid_max_y, they are both
+	//wrapped over to 0, since 0 and grid_max are equivalent when wrapping.
+	var dx = 0;
+	var dy = 0;
+	if (end.x < 0) dx = grid_max_x;
+	else if (end.x > grid_max_x) dx = -grid_max_x;
+	else if (end.x == grid_max_x && start.x == grid_max_x) dx = -grid_max_x;
+	
+	if (end.y < 0) dy = grid_max_y;
+	else if (end.y > grid_max_y) dy = -grid_max_y;
+	else if (end.y == grid_max_y && start.y == grid_max_y) dy = -grid_max_y;
+	
+	//If end needs wrapping, then start must be on an edge so we wrap start
+	//as well, onto the opposite edge.
+	if (dx) {
+		start.x += dx;
+		end.x += dx;
+	}
+	if (dy) {
+		start.y += dy;
+		end.y += dy;
+	}
+}
+
 function wrapPoint(p) {
+	//Modifies p!
+	//NOTE: this function assumes p is never more than 1 grid dimesion away!
 	if (p.x < 0) p.x += grid_max_x;
 	else if (p.x > grid_max_x - 1) p.x -= grid_max_x;
 	
 	if (p.y < 0) p.y += grid_max_y;
 	else if (p.y > grid_max_y - 1) p.y -= grid_max_y;
+	return p;
 }
 
 function getPathAngleIgnoreDirection(line) {
@@ -399,7 +437,7 @@ function getPathAngle(line) {
 function setupTransform(player, ctx) {
     "use strict";
     //center view
-    ctx.scale(1, -1);
+    ctx.scale(1, -1); //Invert y-axis
     ctx.translate(lcanvas.width / 2, -lcanvas.height / 2); //ok because lcanvas and rcanvas dimensions are equal
 
     //track the player
@@ -419,8 +457,8 @@ function renderBG(context) {
 	
 	//@TEST CODE
 	renderTriangleGrid(context);
+	renderRhombusBorder(context);
     context.lineWidth = 1;
-    context.stroke();
 	
     //draw horizontal lines
     for (a = -r; a <= r; a += e) {
@@ -452,9 +490,7 @@ function renderTriangleGrid(context) {
     "use strict";
     context.save();
     context.beginPath();
-    context.scale(1, -1);
-    context.translate(-lcanvas.width / 2, -lcanvas.height / 2); //ok because lcanvas and rcanvas dimensions are equal
-	context.lineWidth = 1;
+    context.lineWidth = 1;
 	
 	var edge = edge_len;//100;
 	var half_edge = edge / 2;
@@ -485,6 +521,27 @@ function renderTriangleGrid(context) {
 		}
 		uporient = !uporient
 	}
+	
+    context.stroke();
+    context.restore();
+}
+//@EXPERIMENTAL
+function renderRhombusBorder(context) {
+    "use strict";
+    context.save();
+    context.beginPath();
+	context.lineWidth = 10;
+    context.strokeStyle = "#DDDDDD";
+	
+	var p1 = new toScreenSpace(new Point(0,0));
+	var p2 = new toScreenSpace(new Point(grid_max_x,0));
+	var p3 = new toScreenSpace(new Point(grid_max_x,grid_max_y));
+	var p4 = new toScreenSpace(new Point(0,grid_max_y));
+	context.moveTo(p1.x, p1.y);
+	context.lineTo(p2.x, p2.y);
+	context.lineTo(p3.x, p3.y);
+	context.lineTo(p4.x, p4.y);
+	context.lineTo(p1.x, p1.y);
 	
     context.stroke();
     context.restore();
@@ -644,7 +701,7 @@ function event_mdown(mouseEvent) {
             testPoint = testPoint.plus(p1.screenCoord);
         }
     }
-	candies.push(new Candy(toNearestGridPoint(testPoint)));
+	candies.push(new Candy(wrapPoint(toNearestGridPoint(testPoint))));
     snap_to_tri_grid(testPoint);
 }
 
@@ -764,8 +821,9 @@ function update_player(player, delta) {
     var leftWall = (pd + 1) % 3; //This wall orientation # will bounce player left
     var rightWall = (pd + 2) % 3;
     var parallelWall = pd % 3;
+	var pos = wrapPoint(player.endVertex.clone());
     walls.forEach(function (wall) {
-        if (player.endVertex.x == wall.x && player.endVertex.y == wall.y) {
+        if (pos.x == wall.x && pos.y == wall.y) {
 		//(new Line(player.path.end.x, player.path.end.y, wall.x, wall.y).length < 10) {
             var o = wall.orientation;
             turnLeft |= (o == leftWall);
@@ -852,7 +910,7 @@ function update_player(player, delta) {
 }
 
 function collide_candies(player) {
-    var pos = player.gridCoord;
+	var pos = wrapPoint(player.gridCoord.clone());
     candies = candies.filter(function (candy) {
 		//TODO make this test better. maybe only test when player crosses a vertex
         if ((pos.x - candy.x) * (pos.x - candy.x) + (pos.y - candy.y) * (pos.y - candy.y) < .01) {
