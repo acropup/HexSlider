@@ -35,25 +35,25 @@ When the grid is translated into screen coordinates, it is sheared into a right-
 
 */
 function toScreenSpace(gc) {
-	//To get screen coordinates from grid coordinates, scale and shear into right/leaning rhombus
-	var sc = new Point();
-	sc.x = gc.x * edge_len + gc.y * half_edge_len;
-	sc.y = gc.y * tri_height;
-	return sc;
+    //To get screen coordinates from grid coordinates, scale and shear into right/leaning rhombus
+    var sc = new Point();
+    sc.x = gc.x * edge_len + gc.y * half_edge_len;
+    sc.y = gc.y * tri_height;
+    return sc;
 }
 function toGridSpace(sc) {
-	//Screen coordinates to grid coordinates
-	var gc = new Point();
-	gc.y = sc.y / tri_height;
-	gc.x = (sc.x - gc.y * half_edge_len) / edge_len;
-	return gc;
+    //Screen coordinates to grid coordinates
+    var gc = new Point();
+    gc.y = sc.y / tri_height;
+    gc.x = (sc.x - gc.y * half_edge_len) / edge_len;
+    return gc;
 }
 function toNearestGridPoint(sc) {
-	//Screen coordinates to nearest grid point
-	var gc = toGridSpace(sc);
-	gc.x = Math.round(gc.x);
-	gc.y = Math.round(gc.y);
-	return gc;
+    //Screen coordinates to nearest grid point
+    var gc = toGridSpace(sc);
+    gc.x = Math.round(gc.x);
+    gc.y = Math.round(gc.y);
+    return gc;
 }
 
 var lcanvas;
@@ -154,12 +154,12 @@ function init() {
     p2.keyLeft = KEY_CODE.Arrow_Left;  //<=37; >=39;
     p2.keyRight = KEY_CODE.Arrow_Right;
     p_default = new Player();
-	p1.endVertex = new Point(-2, 0);
-	p1.setTrajectory(0);
-	p1.step(0);
-	p2.endVertex = new Point(2, 0);
-	p2.setTrajectory(3);
-	p2.step(0);
+    p1.endVertex = new Point(-2, 0);
+    p1.setTrajectory(0);
+    p1.step(0);
+    p2.endVertex = new Point(2, 0);
+    p2.setTrajectory(3);
+    p2.step(0);
     //p1.path = new Line(-2 * s, 0, -2 * s + t, 0);
     //p2.path = new Line(2 * s, 0, 2 * s - t, 0);
 
@@ -191,7 +191,7 @@ function Candy(p) {
 
 function Wall(pos, orient, size) {
     //Size param is optional
-    this.x = pos.x;	//Coordinates are in grid space
+    this.x = pos.x;    //Coordinates are in grid space
     this.y = pos.y;
     this.orientation = orient; //Should be 0-2... 0: --, 1: /, 2: \ .
     this.maxSize = size || t/6;
@@ -231,7 +231,7 @@ function renderWalls(context) {
         }
         var hlx = hl * xCoef;  //half-length x when wall on an angle
         var hly = hl * yCoef;
-		var w = toScreenSpace(wall);
+        var w = toScreenSpace(wall);
         switch(wall.orientation) {
             case 0: //Horizontal Wall
                 context.moveTo(w.x-hl, w.y);
@@ -271,9 +271,9 @@ function Point(x, y) {
         return new Point(this.x + percent * (p2.x - this.x),
                         this.y + percent * (p2.y - this.y));
     }
-	this.clone = function() {
-		return new Point(this.x, this.y);
-	}
+    this.clone = function() {
+        return new Point(this.x, this.y);
+    }
     this.toString = function() {
         return "(" + this.x + ", " + this.y + ")";
     }
@@ -328,80 +328,80 @@ function Player() {
         
         //Path angle is either +1 to left or -1 to right. +2 is like -1 but without risk of going negative
         var pa = (this.trajectory + ((direction == 1) ? 1 : 2)) % 3;
-		//Wrap in case endVertex is on grid_max
-		var wp = wrapPoint(this.endVertex.clone());
+        //Wrap in case endVertex is on grid_max
+        var wp = wrapPoint(this.endVertex.clone());
         walls.push(new Wall(wp, pa));
         
         return true; //Keypress handled
     };
-	
-	this.trajectory = 0; 				//Value 0-5, signifying which direction player is travelling
-	this.startVertex = new Point(1, 1);	//Player is moving away from this vertex (grid space)
-	this.endVertex = new Point(2, 1);	//Player is moving toward this vertex (grid space)
-	this.percent_travelled = 0;	//How far player is between startVertex (0) and endVertex (1)
-	this.gridCoord;				//Current player coordinates, in grid space
-	this.screenCoord;			//Current player coordinates, in screen space
-	this.setTrajectory = function(newTrajectory) {
-		this.trajectory = newTrajectory;
-		this.startVertex = this.endVertex;
-		var trajectory_dx = [1, 0, -1, -1,  0,  1];
-		var trajectory_dy = [0, 1,  1,  0, -1, -1];
-		var dx = trajectory_dx[newTrajectory];
-		var dy = trajectory_dy[newTrajectory];
-		this.endVertex = this.endVertex.plus(new Point(dx, dy));
-		//TODO How do we make sure to wrap the whole path properly. Joe probably already solved it in wrap_path but I am le tired.
-		wrapPath(this.startVertex, this.endVertex);
-		this.step(-1); //Reset percent_travelled and set new coords
-		if (this == p1) log('player1 at ' + this.startVertex + ' screen ' + this.screenCoord);
-	};
-	this.step = function(pct) {
-		//Call this every frame to update player's position
-		//Step forward pct% of an edge length
-		this.percent_travelled += pct;
-		this.gridCoord = this.startVertex.lerp(this.endVertex, this.percent_travelled);
-		this.screenCoord = toScreenSpace(this.gridCoord);
-	}
+    
+    this.trajectory = 0;                 //Value 0-5, signifying which direction player is travelling
+    this.startVertex = new Point(1, 1);    //Player is moving away from this vertex (grid space)
+    this.endVertex = new Point(2, 1);    //Player is moving toward this vertex (grid space)
+    this.percent_travelled = 0;    //How far player is between startVertex (0) and endVertex (1)
+    this.gridCoord;                //Current player coordinates, in grid space
+    this.screenCoord;            //Current player coordinates, in screen space
+    this.setTrajectory = function(newTrajectory) {
+        this.trajectory = newTrajectory;
+        this.startVertex = this.endVertex;
+        var trajectory_dx = [1, 0, -1, -1,  0,  1];
+        var trajectory_dy = [0, 1,  1,  0, -1, -1];
+        var dx = trajectory_dx[newTrajectory];
+        var dy = trajectory_dy[newTrajectory];
+        this.endVertex = this.endVertex.plus(new Point(dx, dy));
+        //TODO How do we make sure to wrap the whole path properly. Joe probably already solved it in wrap_path but I am le tired.
+        wrapPath(this.startVertex, this.endVertex);
+        this.step(-1); //Reset percent_travelled and set new coords
+        if (this == p1) log('player1 at ' + this.startVertex + ' screen ' + this.screenCoord);
+    };
+    this.step = function(pct) {
+        //Call this every frame to update player's position
+        //Step forward pct% of an edge length
+        this.percent_travelled += pct;
+        this.gridCoord = this.startVertex.lerp(this.endVertex, this.percent_travelled);
+        this.screenCoord = toScreenSpace(this.gridCoord);
+    }
     
 }
 
 function wrapPath(start, end) {
-	//NOTE: this function assumes start/end are never more than 1 grid dimesion away!
-	//Check if end is out of bounds and needs wrapping. Allow end to be within
-	//[0, grid_max_x] and [0, grid_max_y] (inclusive of upper range).
-	//We assume that start is always within bounds, because all starts were once ends.
-	//If both start and end are along grid_max_x or grid_max_y, they are both
-	//wrapped over to 0, since 0 and grid_max are equivalent when wrapping.
-	var dx = 0;
-	var dy = 0;
-	if (end.x < 0) dx = grid_max_x;
-	else if (end.x > grid_max_x) dx = -grid_max_x;
-	else if (end.x == grid_max_x && start.x == grid_max_x) dx = -grid_max_x;
-	
-	if (end.y < 0) dy = grid_max_y;
-	else if (end.y > grid_max_y) dy = -grid_max_y;
-	else if (end.y == grid_max_y && start.y == grid_max_y) dy = -grid_max_y;
-	
-	//If end needs wrapping, then start must be on an edge so we wrap start
-	//as well, onto the opposite edge.
-	if (dx) {
-		start.x += dx;
-		end.x += dx;
-	}
-	if (dy) {
-		start.y += dy;
-		end.y += dy;
-	}
+    //NOTE: this function assumes start/end are never more than 1 grid dimesion away!
+    //Check if end is out of bounds and needs wrapping. Allow end to be within
+    //[0, grid_max_x] and [0, grid_max_y] (inclusive of upper range).
+    //We assume that start is always within bounds, because all starts were once ends.
+    //If both start and end are along grid_max_x or grid_max_y, they are both
+    //wrapped over to 0, since 0 and grid_max are equivalent when wrapping.
+    var dx = 0;
+    var dy = 0;
+    if (end.x < 0) dx = grid_max_x;
+    else if (end.x > grid_max_x) dx = -grid_max_x;
+    else if (end.x == grid_max_x && start.x == grid_max_x) dx = -grid_max_x;
+    
+    if (end.y < 0) dy = grid_max_y;
+    else if (end.y > grid_max_y) dy = -grid_max_y;
+    else if (end.y == grid_max_y && start.y == grid_max_y) dy = -grid_max_y;
+    
+    //If end needs wrapping, then start must be on an edge so we wrap start
+    //as well, onto the opposite edge.
+    if (dx) {
+        start.x += dx;
+        end.x += dx;
+    }
+    if (dy) {
+        start.y += dy;
+        end.y += dy;
+    }
 }
 
 function wrapPoint(p) {
-	//Modifies p!
-	//NOTE: this function assumes p is never more than 1 grid dimesion away!
-	if (p.x < 0) p.x += grid_max_x;
-	else if (p.x > grid_max_x - 1) p.x -= grid_max_x;
-	
-	if (p.y < 0) p.y += grid_max_y;
-	else if (p.y > grid_max_y - 1) p.y -= grid_max_y;
-	return p;
+    //Modifies p!
+    //NOTE: this function assumes p is never more than 1 grid dimesion away!
+    if (p.x < 0) p.x += grid_max_x;
+    else if (p.x > grid_max_x - 1) p.x -= grid_max_x;
+    
+    if (p.y < 0) p.y += grid_max_y;
+    else if (p.y > grid_max_y - 1) p.y -= grid_max_y;
+    return p;
 }
 
 function getPathAngleIgnoreDirection(line) {
@@ -454,12 +454,12 @@ function renderBG(context) {
     var w;
     context.save();
     context.beginPath();
-	
-	//@TEST CODE
-	renderTriangleGrid(context);
-	renderRhombusBorder(context);
+    
+    //@TEST CODE
+    renderTriangleGrid(context);
+    renderRhombusBorder(context);
     context.lineWidth = 1;
-	
+    
     //draw horizontal lines
     for (a = -r; a <= r; a += e) {
         w = (r - Math.abs(a)) / r * s + s;
@@ -480,7 +480,7 @@ function renderBG(context) {
         context.moveTo(-w, a);
         context.lineTo( w, a);
     }
-	
+    
     context.stroke();
     context.restore();
 }
@@ -491,37 +491,37 @@ function renderTriangleGrid(context) {
     context.save();
     context.beginPath();
     context.lineWidth = 1;
-	
-	var edge = edge_len;//100;
-	var half_edge = edge / 2;
-	var height = Math.sqrt(edge*edge*3/4);
-	var uporient = true;
-	var row_max = lcanvas.height / height-1; //TODO: remove -1, just there for debugging
-	for(var tri_row = 0; tri_row < row_max; tri_row++) {
-		var row_odd = tri_row & 1;
-		var col_max = (-2 + lcanvas.width / half_edge) & ~1 -row_odd;
-		for(var tri_col = -row_odd; tri_col < col_max; tri_col++) {
-			var x1 = tri_col * half_edge + (tri_row % 2 ? half_edge : 0);
-			var x2 = x1 + half_edge;
-			var x3 = x2 + half_edge;
-			var y1 = tri_row * height;
-			var y2 = y1 + height;
-			if (uporient) { //draw triangle with pointy top
-				context.moveTo(x2, y1);
-				context.lineTo(x3, y2);
-				context.lineTo(x1, y2);
-				context.lineTo(x2, y1);
-			} else {			//draw triangle with pointy bottom
-				context.moveTo(x1, y1);
-				context.lineTo(x3, y1);
-				context.lineTo(x2, y2);
-				context.lineTo(x1, y1);
-			}
-			uporient = !uporient;
-		}
-		uporient = !uporient
-	}
-	
+    
+    var edge = edge_len;//100;
+    var half_edge = edge / 2;
+    var height = Math.sqrt(edge*edge*3/4);
+    var uporient = true;
+    var row_max = lcanvas.height / height-1; //TODO: remove -1, just there for debugging
+    for(var tri_row = 0; tri_row < row_max; tri_row++) {
+        var row_odd = tri_row & 1;
+        var col_max = (-2 + lcanvas.width / half_edge) & ~1 -row_odd;
+        for(var tri_col = -row_odd; tri_col < col_max; tri_col++) {
+            var x1 = tri_col * half_edge + (tri_row % 2 ? half_edge : 0);
+            var x2 = x1 + half_edge;
+            var x3 = x2 + half_edge;
+            var y1 = tri_row * height;
+            var y2 = y1 + height;
+            if (uporient) { //draw triangle with pointy top
+                context.moveTo(x2, y1);
+                context.lineTo(x3, y2);
+                context.lineTo(x1, y2);
+                context.lineTo(x2, y1);
+            } else {            //draw triangle with pointy bottom
+                context.moveTo(x1, y1);
+                context.lineTo(x3, y1);
+                context.lineTo(x2, y2);
+                context.lineTo(x1, y1);
+            }
+            uporient = !uporient;
+        }
+        uporient = !uporient
+    }
+    
     context.stroke();
     context.restore();
 }
@@ -530,19 +530,19 @@ function renderRhombusBorder(context) {
     "use strict";
     context.save();
     context.beginPath();
-	context.lineWidth = 10;
+    context.lineWidth = 10;
     context.strokeStyle = "#DDDDDD";
-	
-	var p1 = new toScreenSpace(new Point(0,0));
-	var p2 = new toScreenSpace(new Point(grid_max_x,0));
-	var p3 = new toScreenSpace(new Point(grid_max_x,grid_max_y));
-	var p4 = new toScreenSpace(new Point(0,grid_max_y));
-	context.moveTo(p1.x, p1.y);
-	context.lineTo(p2.x, p2.y);
-	context.lineTo(p3.x, p3.y);
-	context.lineTo(p4.x, p4.y);
-	context.lineTo(p1.x, p1.y);
-	
+    
+    var p1 = new toScreenSpace(new Point(0,0));
+    var p2 = new toScreenSpace(new Point(grid_max_x,0));
+    var p3 = new toScreenSpace(new Point(grid_max_x,grid_max_y));
+    var p4 = new toScreenSpace(new Point(0,grid_max_y));
+    context.moveTo(p1.x, p1.y);
+    context.lineTo(p2.x, p2.y);
+    context.lineTo(p3.x, p3.y);
+    context.lineTo(p4.x, p4.y);
+    context.lineTo(p1.x, p1.y);
+    
     context.stroke();
     context.restore();
 }
@@ -553,7 +553,7 @@ function renderPlayer(player, context) {
     var pos = player.screenCoord;
     context.arc(pos.x, pos.y, player.radius, 0, 2 * Math.PI, false);
     context.stroke();
-	//@TEST CODE
+    //@TEST CODE
     context.beginPath();
     pos = toScreenSpace(player.startVertex);
     context.arc(pos.x, pos.y, player.radius-5, 0, 2 * Math.PI, false);
@@ -630,7 +630,7 @@ function renderTiledGame() {
 function renderCandies(ctx) {
     ctx.strokeStyle = "#009900";
     candies.forEach(function (candy) {
-		var p = toScreenSpace(new Point(candy.x, candy.y));
+        var p = toScreenSpace(new Point(candy.x, candy.y));
         ctx.strokeRect(p.x - 10, p.y - 10, 20, 20);
     });
 }
@@ -701,7 +701,7 @@ function event_mdown(mouseEvent) {
             testPoint = testPoint.plus(p1.screenCoord);
         }
     }
-	candies.push(new Candy(wrapPoint(toNearestGridPoint(testPoint))));
+    candies.push(new Candy(wrapPoint(toNearestGridPoint(testPoint))));
     snap_to_tri_grid(testPoint);
 }
 
@@ -799,10 +799,10 @@ function generate_random_vertex() {
 }
 
 function update_player(player, delta) {
-	var msPerEdge = 835;
-	//TODO: Should player position be updated here or in physics()?
-	player.step(delta/msPerEdge);
-	if (player.percent_travelled < 1) return; //Player is still on current line
+    var msPerEdge = 835;
+    //TODO: Should player position be updated here or in physics()?
+    player.step(delta/msPerEdge);
+    if (player.percent_travelled < 1) return; //Player is still on current line
     //Player has reached (or passed) endVertex
     
     //Look for walls at this vertex
@@ -821,10 +821,10 @@ function update_player(player, delta) {
     var leftWall = (pd + 1) % 3; //This wall orientation # will bounce player left
     var rightWall = (pd + 2) % 3;
     var parallelWall = pd % 3;
-	var pos = wrapPoint(player.endVertex.clone());
+    var pos = wrapPoint(player.endVertex.clone());
     walls.forEach(function (wall) {
         if (pos.x == wall.x && pos.y == wall.y) {
-		//(new Line(player.path.end.x, player.path.end.y, wall.x, wall.y).length < 10) {
+        //(new Line(player.path.end.x, player.path.end.y, wall.x, wall.y).length < 10) {
             var o = wall.orientation;
             turnLeft |= (o == leftWall);
             turnRight|= (o == rightWall);
@@ -846,7 +846,7 @@ function update_player(player, delta) {
         pd += 2;
     }
     if (pd >= 6) pd -= 6;
-	player.setTrajectory(pd);
+    player.setTrajectory(pd);
     /*
     if (turnRight ^ turnLeft) {
         //find path ray end-start
@@ -910,9 +910,9 @@ function update_player(player, delta) {
 }
 
 function collide_candies(player) {
-	var pos = wrapPoint(player.gridCoord.clone());
+    var pos = wrapPoint(player.gridCoord.clone());
     candies = candies.filter(function (candy) {
-		//TODO make this test better. maybe only test when player crosses a vertex
+        //TODO make this test better. maybe only test when player crosses a vertex
         if ((pos.x - candy.x) * (pos.x - candy.x) + (pos.y - candy.y) * (pos.y - candy.y) < .01) {
             player.effectsQueue.push(candy.effect);
             return false;
