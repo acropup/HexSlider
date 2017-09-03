@@ -89,7 +89,7 @@ var candies = [];
 var walls = [];
 
 //Key handling reference: http://unixpapa.com/js/key.html
-var KEY_CODE = {
+const KEY_CODE = {
     Enter: 13,
     Space: 32,
     Tab:    9,
@@ -211,7 +211,6 @@ function update_walls(dt) {
             walls[i] = walls[walls.length - 1];
             walls.length--;
         }
-        
     }
 }
         
@@ -390,13 +389,11 @@ function wrapPath(start, end) {
 
 function wrapPoint(p) {
     //Modifies p!
-    //NOTE: this function assumes p is never more than 1 grid dimesion away!
-    if (p.x < 0) p.x += grid_max_x;
-    else if (p.x >= grid_max_x) p.x -= grid_max_x;
-    else if (p.x >= grid_max_x) p.x -= grid_max_x;
+    while (p.x < 0) p.x += grid_max_x;
+    while (p.x >= grid_max_x) p.x -= grid_max_x;
     
-    if (p.y < 0) p.y += grid_max_y;
-    else if (p.y >= grid_max_y) p.y -= grid_max_y;
+    while (p.y < 0) p.y += grid_max_y;
+    while (p.y >= grid_max_y) p.y -= grid_max_y;
     return p;
 }
 
@@ -452,10 +449,13 @@ function renderBG(context) {
     context.beginPath();
     
     //@TEST CODE
-    renderTriangleGrid(context);
+    //renderTriangleGrid(context);
     renderRhombusBorder(context);
-    context.lineWidth = 1;
+    renderTrianglesWithinRhombus(context);
     
+    return;
+    //Draw Hexagon
+    context.lineWidth = 1;
     //draw horizontal lines
     for (a = -r; a <= r; a += e) {
         w = (r - Math.abs(a)) / r * s + s;
@@ -483,23 +483,29 @@ function renderBG(context) {
 
 //@EXPERIMENTAL
 function renderTriangleGrid(context) {
+    // Fills screen with grid of trianges, rendering every triangle individually.
+    //This is inefficient if just drawing lines, but might be useful for some effects.
     "use strict";
+    var row_max = lcanvas.height / tri_height -2;
+    var col_max = lcanvas.width / half_edge_len -2;
+    
     context.save();
-    context.translate(-lcanvas.width / 2, -lcanvas.height / 2);
-
+    
+    context.translate(-edge_len * Math.round(lcanvas.width / (2 * edge_len)),
+                      -tri_height * Math.floor(lcanvas.height / (2 * tri_height)));
+    var start_orient = Math.floor(lcanvas.height / (2 * tri_height)) % 2;
     context.beginPath();
     context.lineWidth = 1;
     
-    var row_max = lcanvas.height / tri_height-1; //TODO: remove -1, just there for debugging
-    var col_max = lcanvas.width / half_edge_len-3;
     var y1 = 0;
     var y2 = 0;
     for(var tri_row = 0; tri_row < row_max; tri_row++) {
         var uporient = tri_row & 1;
+        if (!start_orient) uporient = !uporient;
         y1 = y2;
         y2 += tri_height;
 
-        var x1 = 0;
+        var x1 = -half_edge_len;
         var x2 = x1 + half_edge_len;
         var x3 = x2 + half_edge_len;
         for(var tri_col = 0; tri_col < col_max; tri_col++) {
@@ -508,16 +514,16 @@ function renderTriangleGrid(context) {
             x3 += half_edge_len;
             if (uporient) {
                 //draw triangle with pointy top
-                context.moveTo(x2, y1);
-                context.lineTo(x3, y2);
-                context.lineTo(x1, y2);
-                context.lineTo(x2, y1);
+                context.moveTo(x1, y1);
+                context.lineTo(x2, y2);
+                context.lineTo(x3, y1);
+                context.lineTo(x1, y1);
             } else {
                 //draw triangle with pointy bottom
-                context.moveTo(x1, y1);
-                context.lineTo(x3, y1);
-                context.lineTo(x2, y2);
-                context.lineTo(x1, y1);
+                context.moveTo(x1, y2);
+                context.lineTo(x3, y2);
+                context.lineTo(x2, y1);
+                context.lineTo(x1, y2);
             }
             uporient = !uporient;
         }
@@ -526,7 +532,7 @@ function renderTriangleGrid(context) {
     context.stroke();
     context.restore();
 }
-//@EXPERIMENTAL
+
 function renderRhombusBorder(context) {
     "use strict";
     context.save();
@@ -548,13 +554,57 @@ function renderRhombusBorder(context) {
     context.restore();
 }
 
+function renderTrianglesWithinRhombus(context) {
+    "use strict";
+    context.save();
+    context.beginPath();
+    
+    var bottomLeft = toScreenSpace(new Point(0,0));
+    var y1 = 0;
+    var y2 = bottomLeft.y;
+    var xStart = bottomLeft.x;
+    for(var row = 0; row < grid_max_y; row++) {
+        //For a right-leaning rhombus, every row starts with an up-oriented triangle
+        //and ends with a down-oriented triangle
+        var uporient = true;
+        y1 = y2;
+        y2 = y1 + tri_height;
+        var x1 = xStart - half_edge_len;
+        var x2 = x1 + half_edge_len;
+        var x3 = x2 + half_edge_len;
+        for(var col = 0; col < 2*grid_max_x; col++) {
+            x1 = x2;
+            x2 = x3;
+            x3 += half_edge_len;
+            if (uporient) {
+                //draw triangle with pointy top
+                context.moveTo(x1, y1);
+                context.lineTo(x2, y2);
+                context.lineTo(x3, y1);
+                context.lineTo(x1, y1);
+            } else {
+                //draw triangle with pointy bottom
+                context.moveTo(x1, y2);
+                context.lineTo(x3, y2);
+                context.lineTo(x2, y1);
+                context.lineTo(x1, y2);
+            }
+            uporient = !uporient;
+        }
+        xStart += half_edge_len
+    }
+    
+    context.stroke();
+    context.restore();
+}
+
 function renderPlayer(player, context) {
     "use strict";
     context.beginPath();
     var pos = player.screenCoord;
     context.arc(pos.x, pos.y, player.radius, 0, 2 * Math.PI, false);
     context.stroke();
-    //@TEST CODE
+    //@TEST CODE marks the start and end vertices that player is lerping on
     context.beginPath();
     pos = toScreenSpace(player.startVertex);
     context.arc(pos.x, pos.y, player.radius-5, 0, 2 * Math.PI, false);
@@ -577,6 +627,8 @@ function renderClear() {
 }
 
 function renderTiledGame() {
+
+    /* hexagon tiling positions
     const positions = 
         [ [0, 0]
         , [0, +2 * r]
@@ -585,8 +637,21 @@ function renderTiledGame() {
         , [+3 * s, r]
         , [-3 * s, -r]
         , [+3 * s, -r]
-        ];
-
+        ];*/
+    var dx = grid_max_x * edge_len;
+    var dy = grid_max_y * tri_height;
+    //Rhombus tiling positions
+    const positions = 
+        [ [-dx*3/2, -dy]
+        , [dx, 0]
+        , [dx, 0]
+        , [-dx*3/2, dy]
+        , [dx, 0]
+        , [dx, 0]
+        , [-dx*3/2, dy]
+        , [dx, 0]
+        , [dx, 0]];
+        
     renderClear();
     setupTransform(p1, lctx);
     setupTransform(p2, rctx);
@@ -615,6 +680,11 @@ function renderTiledGame() {
         renderPlayer(p1, rctx);
         rctx.strokeStyle = "#FF0000";
         renderPlayer(p2, rctx);
+        
+        renderCandies(rctx);
+        renderCandies(lctx);
+        renderWalls(rctx);
+        renderWalls(lctx);
 
         lctx.restore();
         rctx.restore();
