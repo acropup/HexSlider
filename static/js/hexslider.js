@@ -336,11 +336,11 @@ function Player() {
     };
     
     this.trajectory = 0;                 //Value 0-5, signifying which direction player is travelling
-    this.startVertex = new Point(1, 1);    //Player is moving away from this vertex (grid space)
+    this.startVertex = new Point(1, 1);  //Player is moving away from this vertex (grid space)
     this.endVertex = new Point(2, 1);    //Player is moving toward this vertex (grid space)
     this.percent_travelled = 0;    //How far player is between startVertex (0) and endVertex (1)
     this.gridCoord;                //Current player coordinates, in grid space
-    this.screenCoord;            //Current player coordinates, in screen space
+    this.screenCoord;              //Current player coordinates, in screen space
     this.setTrajectory = function(newTrajectory) {
         this.trajectory = newTrajectory;
         this.startVertex = this.endVertex;
@@ -365,31 +365,26 @@ function Player() {
 }
 
 function wrapPath(start, end) {
-    //NOTE: this function assumes start/end are never more than 1 grid dimesion away!
-    //Check if end is out of bounds and needs wrapping. Allow end to be within
+    //NOTE: function assumes start/end are never more than 1 grid dimesion away!
+    //Also assumes that start is always within bounds, because all starts were once ends.
+    //Check if end is out of bounds, and wrap both points if so. Allow end to be within
     //[0, grid_max_x] and [0, grid_max_y] (inclusive of upper range).
-    //We assume that start is always within bounds, because all starts were once ends.
     //If both start and end are along grid_max_x or grid_max_y, they are both
     //wrapped over to 0, since 0 and grid_max are equivalent when wrapping.
-    var dx = 0;
-    var dy = 0;
-    if (end.x < 0) dx = grid_max_x;
-    else if (end.x > grid_max_x) dx = -grid_max_x;
-    else if (end.x == grid_max_x && start.x == grid_max_x) dx = -grid_max_x;
-    
-    if (end.y < 0) dy = grid_max_y;
-    else if (end.y > grid_max_y) dy = -grid_max_y;
-    else if (end.y == grid_max_y && start.y == grid_max_y) dy = -grid_max_y;
-    
-    //If end needs wrapping, then start must be on an edge so we wrap start
-    //as well, onto the opposite edge.
-    if (dx) {
-        start.x += dx;
-        end.x += dx;
+    if (end.x < 0) {
+        start.x += grid_max_x;
+        end.x   += grid_max_x;
+    } else if ((end.x > grid_max_x) || (end.x == grid_max_x && start.x == grid_max_x)) {
+        start.x -= grid_max_x;
+        end.x   -= grid_max_x;
     }
-    if (dy) {
-        start.y += dy;
-        end.y += dy;
+    
+    if (end.y < 0) {
+        start.y += grid_max_y;
+        end.y   += grid_max_y;
+    } else if ((end.y > grid_max_y) || (end.y == grid_max_y && start.y == grid_max_y)) {
+        start.y -= grid_max_y;
+        end.y   -= grid_max_y;
     }
 }
 
@@ -397,10 +392,11 @@ function wrapPoint(p) {
     //Modifies p!
     //NOTE: this function assumes p is never more than 1 grid dimesion away!
     if (p.x < 0) p.x += grid_max_x;
-    else if (p.x > grid_max_x - 1) p.x -= grid_max_x;
+    else if (p.x >= grid_max_x) p.x -= grid_max_x;
+    else if (p.x >= grid_max_x) p.x -= grid_max_x;
     
     if (p.y < 0) p.y += grid_max_y;
-    else if (p.y > grid_max_y - 1) p.y -= grid_max_y;
+    else if (p.y >= grid_max_y) p.y -= grid_max_y;
     return p;
 }
 
@@ -489,29 +485,35 @@ function renderBG(context) {
 function renderTriangleGrid(context) {
     "use strict";
     context.save();
+    context.translate(-lcanvas.width / 2, -lcanvas.height / 2);
+
     context.beginPath();
     context.lineWidth = 1;
     
-    var edge = edge_len;//100;
-    var half_edge = edge / 2;
-    var height = Math.sqrt(edge*edge*3/4);
-    var uporient = true;
-    var row_max = lcanvas.height / height-1; //TODO: remove -1, just there for debugging
+    var row_max = lcanvas.height / tri_height-1; //TODO: remove -1, just there for debugging
+    var col_max = lcanvas.width / half_edge_len-3;
+    var y1 = 0;
+    var y2 = 0;
     for(var tri_row = 0; tri_row < row_max; tri_row++) {
-        var row_odd = tri_row & 1;
-        var col_max = (-2 + lcanvas.width / half_edge) & ~1 -row_odd;
-        for(var tri_col = -row_odd; tri_col < col_max; tri_col++) {
-            var x1 = tri_col * half_edge + (tri_row % 2 ? half_edge : 0);
-            var x2 = x1 + half_edge;
-            var x3 = x2 + half_edge;
-            var y1 = tri_row * height;
-            var y2 = y1 + height;
-            if (uporient) { //draw triangle with pointy top
+        var uporient = tri_row & 1;
+        y1 = y2;
+        y2 += tri_height;
+
+        var x1 = 0;
+        var x2 = x1 + half_edge_len;
+        var x3 = x2 + half_edge_len;
+        for(var tri_col = 0; tri_col < col_max; tri_col++) {
+            x1 = x2;
+            x2 = x3;
+            x3 += half_edge_len;
+            if (uporient) {
+                //draw triangle with pointy top
                 context.moveTo(x2, y1);
                 context.lineTo(x3, y2);
                 context.lineTo(x1, y2);
                 context.lineTo(x2, y1);
-            } else {            //draw triangle with pointy bottom
+            } else {
+                //draw triangle with pointy bottom
                 context.moveTo(x1, y1);
                 context.lineTo(x3, y1);
                 context.lineTo(x2, y2);
@@ -519,7 +521,6 @@ function renderTriangleGrid(context) {
             }
             uporient = !uporient;
         }
-        uporient = !uporient
     }
     
     context.stroke();
@@ -533,10 +534,10 @@ function renderRhombusBorder(context) {
     context.lineWidth = 10;
     context.strokeStyle = "#DDDDDD";
     
-    var p1 = new toScreenSpace(new Point(0,0));
-    var p2 = new toScreenSpace(new Point(grid_max_x,0));
-    var p3 = new toScreenSpace(new Point(grid_max_x,grid_max_y));
-    var p4 = new toScreenSpace(new Point(0,grid_max_y));
+    var p1 = toScreenSpace(new Point(0,0));
+    var p2 = toScreenSpace(new Point(grid_max_x,0));
+    var p3 = toScreenSpace(new Point(grid_max_x,grid_max_y));
+    var p4 = toScreenSpace(new Point(0,grid_max_y));
     context.moveTo(p1.x, p1.y);
     context.lineTo(p2.x, p2.y);
     context.lineTo(p3.x, p3.y);
