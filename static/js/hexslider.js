@@ -1,7 +1,5 @@
 "use strict";
 /* Ideas/questions/notes/plans:
-S Why not "use strict" at the top of file and be done with it?
-    J For compatibility with external libraries that may not conform to 'use strict'. But I just changed my mind.
 S Idea: Convert internal representation of nodes to a standard integer grid, 
         and have a function that maps grid points (scale + translate) to the
         tiled triangular grid for rendering.
@@ -75,8 +73,12 @@ const e = 100; //triangle height; should evenly divide `r`
 const s = r * Math.tan(Math.PI/6); //half of a side length (for larger game hexagon)
 const t = 2*s*e / r; //triangle edge length
 
-var tracking = false;
-var tiling = false;
+let DEBUG_FLAGS = {
+    'tracking': false,
+    'tiling': false,
+    'paused': false,
+    'path_markers': true
+}
 
 var time_old = -1;
 
@@ -163,11 +165,32 @@ function init() {
     //p2.path = new Line(2 * s, 0, 2 * s - t, 0);
 
     window.onkeydown = event_keydown;
-    window.onmousedown = event_mdown;
+    lcanvas.onmousedown = event_mdown;
+    rcanvas.onmousedown = event_mdown;
 
     onResize();
-
+    create_debug_flags();
     requestAnimationFrame(mainloop_init);
+}
+
+function create_debug_flags() {
+    let box = document.getElementById("flaglist")
+    Object.keys(DEBUG_FLAGS).forEach(function (f) {
+        let div = document.createElement("div");
+        let label = document.createElement("label");
+        let input = document.createElement("input");
+        input.type="checkbox";
+        input.checked = DEBUG_FLAGS[f];
+        input.id = f;
+        input.onchange = function () {
+            DEBUG_FLAGS[f] = input.checked;
+        }
+        div.className = "item";
+        label.appendChild(input);
+        label.appendChild(document.createTextNode(f));
+        div.appendChild(label);
+        box.appendChild(div);
+    });
 }
 
 function init_board() {
@@ -427,7 +450,7 @@ function setupTransform(player, ctx) {
     ctx.translate(lcanvas.width / 2, -lcanvas.height / 2); //ok because lcanvas and rcanvas dimensions are equal
 
     //track the player
-    if (tracking) {
+    if (DEBUG_FLAGS.tracking) {
         var pos = player.screenCoord;
         ctx.translate(-pos.x, -pos.y);
     }
@@ -592,14 +615,16 @@ function renderPlayer(player, context) {
     context.arc(pos.x, pos.y, player.radius, 0, 2 * Math.PI, false);
     context.stroke();
     //@TEST CODE marks the start and end vertices that player is lerping on
-    context.beginPath();
-    pos = toScreenSpace(player.startVertex);
-    context.arc(pos.x, pos.y, player.radius-5, 0, 2 * Math.PI, false);
-    context.stroke();
-    context.beginPath();
-    pos = toScreenSpace(player.endVertex);
-    context.arc(pos.x, pos.y, player.radius-5, 0, 2 * Math.PI, false);
-    context.stroke();
+    if (DEBUG_FLAGS.path_markers) {
+        context.beginPath();
+        pos = toScreenSpace(player.startVertex);
+        context.arc(pos.x, pos.y, player.radius-5, 0, 2 * Math.PI, false);
+        context.stroke();
+        context.beginPath();
+        pos = toScreenSpace(player.endVertex);
+        context.arc(pos.x, pos.y, player.radius-5, 0, 2 * Math.PI, false);
+        context.stroke();
+    }
 }
 
 function renderClear() {
@@ -765,11 +790,11 @@ function event_keydown(event) {
     console.log('keyCode ' + event.keyCode + ', char ' + c);
     //`t` toggles view tracking
     if (c === 'T') {
-        tracking = !tracking;
+        DEBUG_FLAGS.tracking = !DEBUG_FLAGS.tracking;
     }
     //`y` toggles world tiling
     else if (c === 'Y') {
-        tiling = !tiling;
+        DEBUG_FLAGS.tiling = !DEBUG_FLAGS.tiling;
     }
 
     //a=65; d=68; <=37; >=39;
@@ -994,9 +1019,12 @@ function mainloop(timestamp) {
     var delta = timestamp - time_old;
     time_old = timestamp;
 
+    if (DEBUG_FLAGS.paused) {
+        delta = 0
+    }
     physics(delta);
 
-    if (tiling) {
+    if (DEBUG_FLAGS.tiling) {
         renderTiledGame();
     } else {
         renderGame();
