@@ -1,5 +1,7 @@
+"use strict";
 /* Ideas/questions/notes/plans:
 S Why not "use strict" at the top of file and be done with it?
+    J For compatibility with external libraries that may not conform to 'use strict'. But I just changed my mind.
 S Idea: Convert internal representation of nodes to a standard integer grid, 
         and have a function that maps grid points (scale + translate) to the
         tiled triangular grid for rendering.
@@ -105,7 +107,6 @@ const KEY_CODE = {
 if (Object.freeze) Object.freeze(KEY_CODE);
 
 function onResize() {
-    "use strict";
     lcanvas.width = window.innerWidth * 0.48;
     lcanvas.height = window.innerHeight * 0.96;
     rcanvas.width = window.innerWidth * 0.48;
@@ -113,7 +114,6 @@ function onResize() {
 }
 
 (function () {
-    "use strict";
     var throttle = function (type, name, obj) {
         obj = obj || window;
         var running = false;
@@ -137,7 +137,6 @@ window.addEventListener("optimizedResize", onResize);
 
 
 function init() {
-    "use strict";
     lcanvas = document.getElementById("left");
     rcanvas = document.getElementById("right");
     lctx = lcanvas.getContext("2d");
@@ -250,7 +249,6 @@ function renderWalls(context) {
 }
 
 function Point(x, y) {
-    "use strict";
     this.x = x;
     this.y = y;
     this.minus = function(p2) {
@@ -279,7 +277,6 @@ function Point(x, y) {
 }
 
 function Line(x1, y1, x2, y2) {
-    "use strict";
     this.start = new Point(x1, y1);
     this.end = new Point(x2, y2);
     //@TODO This length is not updated if start or end are modified after Line creation (it's not a function)
@@ -298,7 +295,6 @@ function Line(x1, y1, x2, y2) {
 }
 
 function Player() {
-    "use strict";
     this.radius = 10;
     this.keyLeft;
     this.keyRight;
@@ -398,13 +394,11 @@ function wrapPoint(p) {
 }
 
 function getPathAngleIgnoreDirection(line) {
-    "use strict";
     var result = getPathAngle(line);
     return (result > 2) ? result - 3 : result;
 }
 
 function getPathAngle(line) {
-    "use strict";
     //  2    1
     //   \  /
     // 3 -  - 0
@@ -428,7 +422,6 @@ function getPathAngle(line) {
 }
 
 function setupTransform(player, ctx) {
-    "use strict";
     //center view
     ctx.scale(1, -1); //Invert y-axis
     ctx.translate(lcanvas.width / 2, -lcanvas.height / 2); //ok because lcanvas and rcanvas dimensions are equal
@@ -441,8 +434,6 @@ function setupTransform(player, ctx) {
 }
 
 function renderBG(context) {
-    "use strict";
-
     var a;
     var w;
     context.save();
@@ -485,7 +476,6 @@ function renderBG(context) {
 function renderTriangleGrid(context) {
     // Fills screen with grid of trianges, rendering every triangle individually.
     //This is inefficient if just drawing lines, but might be useful for some effects.
-    "use strict";
     var row_max = lcanvas.height / tri_height -2;
     var col_max = lcanvas.width / half_edge_len -2;
     
@@ -534,7 +524,6 @@ function renderTriangleGrid(context) {
 }
 
 function renderRhombusBorder(context) {
-    "use strict";
     context.save();
     context.beginPath();
     context.lineWidth = 10;
@@ -555,7 +544,6 @@ function renderRhombusBorder(context) {
 }
 
 function renderTrianglesWithinRhombus(context) {
-    "use strict";
     context.save();
     context.beginPath();
     
@@ -599,7 +587,6 @@ function renderTrianglesWithinRhombus(context) {
 }
 
 function renderPlayer(player, context) {
-    "use strict";
     context.beginPath();
     var pos = player.screenCoord;
     context.arc(pos.x, pos.y, player.radius, 0, 2 * Math.PI, false);
@@ -616,7 +603,6 @@ function renderPlayer(player, context) {
 }
 
 function renderClear() {
-    "use strict";
     lctx.resetTransform();
     rctx.resetTransform();
 
@@ -627,7 +613,6 @@ function renderClear() {
 }
 
 function renderTiledGame() {
-
     /* hexagon tiling positions
     const positions = 
         [ [0, 0]
@@ -707,7 +692,6 @@ function renderCandies(ctx) {
 }
 
 function renderGame() {
-    "use strict";
     renderClear();
     setupTransform(p1, lctx);
     setupTransform(p2, rctx);
@@ -777,7 +761,6 @@ function event_mdown(mouseEvent) {
 }
 
 function event_keydown(event) {
-    "use strict";
     var c = String.fromCharCode(event.keyCode);
     console.log('keyCode ' + event.keyCode + ', char ' + c);
     //`t` toggles view tracking
@@ -947,7 +930,7 @@ function update_player(player, delta) {
         player.path = new Line(player.path.end.x, player.path.end.y, newEnd.x, newEnd.y);
         wrap_path(player.path);
     }
-*/
+    */
     Object.keys(player.effects).forEach(function (effect) {
         //effect is a key in the player.effects dictionary
         player.effects[effect] -= 1;
@@ -993,8 +976,6 @@ function collide_candies(player) {
 }
 
 function physics(delta) {
-    "use strict";
-
     collide_candies(p1);
     collide_candies(p2);
 
@@ -1010,7 +991,6 @@ function mainloop_init(timestamp) {
 }
 
 function mainloop(timestamp) {
-    "use strict";
     var delta = timestamp - time_old;
     time_old = timestamp;
 
