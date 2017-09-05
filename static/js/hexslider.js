@@ -77,7 +77,8 @@ let DEBUG_FLAGS = {
     'tracking': false,
     'tiling': false,
     'paused': false,
-    'path_markers': true
+    'path_markers': true,
+    'trails_by_distance': false
 }
 
 var time_old = -1;
@@ -91,6 +92,7 @@ var testPoint = new Point(-1000, -1000);
 
 var candies = [];
 var walls = [];
+var particles = [];
 
 //Key handling reference: http://unixpapa.com/js/key.html
 const KEY_CODE = {
@@ -169,11 +171,11 @@ function init() {
     rcanvas.onmousedown = event_mdown;
 
     onResize();
-    create_debug_flags();
+    init_debug_flags();
     requestAnimationFrame(mainloop_init);
 }
 
-function create_debug_flags() {
+function init_debug_flags() {
     let box = document.getElementById("flaglist")
     Object.keys(DEBUG_FLAGS).forEach(function (f) {
         let div = document.createElement("div");
@@ -323,6 +325,8 @@ function Player() {
     this.keyRight;
     this.speedMultiplier = 12.0;
     this.speedOffset = 0.0;
+    this.trail_timer = 0;
+    this.trail_period = 100;
     //this.path = new Line(-2 * s, 0, 2 * s, 0);
     this.effects = {};
     this.effectsQueue = [];
@@ -380,6 +384,30 @@ function Player() {
         this.screenCoord = toScreenSpace(this.gridCoord);
     }
     
+}
+
+function Particle(x, y, lifespan, radius, easeInTime, easeOutTime) {
+    this.ttl_orig = lifespan;
+    this.ttl = lifespan;
+    this.radius_orig = radius;
+    this.radius = radius;
+    this.color = "#212121";
+    this.x = x;
+    this.y = y;
+    this.opacity = 1.0;
+    this.tIn = easeInTime;
+    this.tOut = easeOutTime;
+}
+
+function update_particles(dt) {
+    let i = particles.length;
+    while (i--) {
+        let p = particles[i]
+        p.ttl -= dt;
+    }
+    particles = particles.filter(function (p) {
+        return p.ttl > 0;
+    });
 }
 
 function wrapPath(start, end) {
@@ -610,10 +638,11 @@ function renderTrianglesWithinRhombus(context) {
 }
 
 function renderPlayer(player, context) {
-    context.beginPath();
     var pos = player.screenCoord;
+    context.beginPath();
     context.arc(pos.x, pos.y, player.radius, 0, 2 * Math.PI, false);
     context.stroke();
+
     //@TEST CODE marks the start and end vertices that player is lerping on
     if (DEBUG_FLAGS.path_markers) {
         context.beginPath();
@@ -625,6 +654,25 @@ function renderPlayer(player, context) {
         context.arc(pos.x, pos.y, player.radius-5, 0, 2 * Math.PI, false);
         context.stroke();
     }
+}
+
+function renderParticles(context) {
+    particles.forEach(function (particle) {
+        context.fillStyle = particle.color;
+        if (particle.ttl < particle.tOut) {
+            context.globalAlpha = (particle.ttl / particle.tOut);
+            //radius increases to double over the tOut period.
+            particle.radius = particle.radius_orig * (2 - particle.ttl / particle.tOut);
+        } else if (particle.ttl > particle.ttl_orig - particle.tIn) {
+            let ratio = (particle.ttl - particle.ttl_orig) / -particle.tIn;
+            particle.radius = (ratio * 0.5 + 0.5) * particle.radius_orig;
+            context.globalAlpha = ratio;
+        }
+        context.beginPath();
+        context.arc(particle.x, particle.y, particle.radius, 0, 2 * Math.PI, false);
+        context.fill();
+    });
+    context.globalAlpha = 1.0;
 }
 
 function renderClear() {
@@ -749,6 +797,8 @@ function renderGame() {
     renderCandies(lctx);
     renderWalls(rctx);
     renderWalls(lctx);
+    renderParticles(rctx);
+    renderParticles(lctx);
 }
 
 function step(time = 50) {
@@ -881,6 +931,16 @@ function update_player(player, delta) {
     var msPerEdge = 835;
     //TODO: Should player position be updated here or in physics()?
     player.step(delta/msPerEdge);
+
+    //periodically poop particles
+    //This is done by time, although could be by distance instead...
+    player.trail_timer += delta;
+    if (player.trail_timer > player.trail_period) {
+        player.trail_timer = player.trail_timer % player.trail_period;
+        let breadcrumb = new Particle(player.screenCoord.x, player.screenCoord.y, 1000, player.radius / 2, 500, 500);
+        particles.push(breadcrumb);
+    }
+
     if (player.percent_travelled < 1) return; //Player is still on current line
     //Player has reached (or passed) endVertex
     
@@ -1008,6 +1068,8 @@ function physics(delta) {
     update_player(p2, delta);
     
     update_walls(delta);
+
+    update_particles(delta);
 }
 
 function mainloop_init(timestamp) {
