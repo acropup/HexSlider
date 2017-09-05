@@ -638,9 +638,17 @@ function renderTrianglesWithinRhombus(context) {
 
 function renderPlayer(player, context) {
     var pos = player.screenCoord;
+    context.translate(pos.x, pos.y);
+    //context.rotate(-Math.PI / 4);
+    context.rotate((4*Math.PI*player.trajectory - 3*Math.PI) / 12);
     context.beginPath();
-    context.arc(pos.x, pos.y, player.radius, 0, 2 * Math.PI, false);
+    context.arc(0, 0, player.radius, 0, 2 * Math.PI, false);
+    context.lineTo(player.radius*1.5, player.radius*1.5);
+    context.lineTo(0, player.radius);
     context.stroke();
+    //context.rotate(Math.PI / 4);
+    context.rotate((-4*Math.PI*player.trajectory + 3*Math.PI) / 12);
+    context.translate(-pos.x, -pos.y);
 
     //@TEST CODE marks the start and end vertices that player is lerping on
     if (DEBUG_FLAGS.path_markers) {
