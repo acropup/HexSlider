@@ -78,7 +78,6 @@ let DEBUG_FLAGS = {
     'tiling': false,
     'paused': false,
     'path_markers': true,
-    'trails_by_distance': false
 }
 
 var time_old = -1;
