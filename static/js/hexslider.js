@@ -1,5 +1,5 @@
+"use strict";
 /* Ideas/questions/notes/plans:
-S Why not "use strict" at the top of file and be done with it?
 S Idea: Convert internal representation of nodes to a standard integer grid, 
         and have a function that maps grid points (scale + translate) to the
         tiled triangular grid for rendering.
@@ -73,8 +73,12 @@ const e = 100; //triangle height; should evenly divide `r`
 const s = r * Math.tan(Math.PI/6); //half of a side length (for larger game hexagon)
 const t = 2*s*e / r; //triangle edge length
 
-var tracking = false;
-var tiling = false;
+let DEBUG_FLAGS = {
+    'tracking': false,
+    'tiling': false,
+    'paused': false,
+    'path_markers': true,
+}
 
 var time_old = -1;
 
@@ -87,6 +91,7 @@ var testPoint = new Point(-1000, -1000);
 
 var candies = [];
 var walls = [];
+var particles = [];
 
 //Key handling reference: http://unixpapa.com/js/key.html
 const KEY_CODE = {
@@ -105,7 +110,6 @@ const KEY_CODE = {
 if (Object.freeze) Object.freeze(KEY_CODE);
 
 function onResize() {
-    "use strict";
     lcanvas.width = window.innerWidth * 0.48;
     lcanvas.height = window.innerHeight * 0.96;
     rcanvas.width = window.innerWidth * 0.48;
@@ -113,7 +117,6 @@ function onResize() {
 }
 
 (function () {
-    "use strict";
     var throttle = function (type, name, obj) {
         obj = obj || window;
         var running = false;
@@ -137,7 +140,6 @@ window.addEventListener("optimizedResize", onResize);
 
 
 function init() {
-    "use strict";
     lcanvas = document.getElementById("left");
     rcanvas = document.getElementById("right");
     lctx = lcanvas.getContext("2d");
@@ -164,11 +166,32 @@ function init() {
     //p2.path = new Line(2 * s, 0, 2 * s - t, 0);
 
     window.onkeydown = event_keydown;
-    window.onmousedown = event_mdown;
+    lcanvas.onmousedown = event_mdown;
+    rcanvas.onmousedown = event_mdown;
 
     onResize();
-
+    init_debug_flags();
     requestAnimationFrame(mainloop_init);
+}
+
+function init_debug_flags() {
+    let box = document.getElementById("flaglist")
+    Object.keys(DEBUG_FLAGS).forEach(function (f) {
+        let div = document.createElement("div");
+        let label = document.createElement("label");
+        let input = document.createElement("input");
+        input.type="checkbox";
+        input.checked = DEBUG_FLAGS[f];
+        input.id = f;
+        input.onchange = function () {
+            DEBUG_FLAGS[f] = input.checked;
+        }
+        div.className = "item";
+        label.appendChild(input);
+        label.appendChild(document.createTextNode(f));
+        div.appendChild(label);
+        box.appendChild(div);
+    });
 }
 
 function init_board() {
@@ -250,7 +273,6 @@ function renderWalls(context) {
 }
 
 function Point(x, y) {
-    "use strict";
     this.x = x;
     this.y = y;
     this.minus = function(p2) {
@@ -279,7 +301,6 @@ function Point(x, y) {
 }
 
 function Line(x1, y1, x2, y2) {
-    "use strict";
     this.start = new Point(x1, y1);
     this.end = new Point(x2, y2);
     //@TODO This length is not updated if start or end are modified after Line creation (it's not a function)
@@ -298,12 +319,13 @@ function Line(x1, y1, x2, y2) {
 }
 
 function Player() {
-    "use strict";
     this.radius = 10;
     this.keyLeft;
     this.keyRight;
     this.speedMultiplier = 12.0;
     this.speedOffset = 0.0;
+    this.trail_timer = 0;
+    this.trail_period = 100;
     //this.path = new Line(-2 * s, 0, 2 * s, 0);
     this.effects = {};
     this.effectsQueue = [];
@@ -363,6 +385,30 @@ function Player() {
     
 }
 
+function Particle(x, y, lifespan, radius, easeInTime, easeOutTime) {
+    this.ttl_orig = lifespan;
+    this.ttl = lifespan;
+    this.radius_orig = radius;
+    this.radius = radius;
+    this.color = "#212121";
+    this.x = x;
+    this.y = y;
+    this.opacity = 1.0;
+    this.tIn = easeInTime;
+    this.tOut = easeOutTime;
+}
+
+function update_particles(dt) {
+    let i = particles.length;
+    while (i--) {
+        let p = particles[i]
+        p.ttl -= dt;
+    }
+    particles = particles.filter(function (p) {
+        return p.ttl > 0;
+    });
+}
+
 function wrapPath(start, end) {
     //NOTE: function assumes start/end are never more than 1 grid dimesion away!
     //Also assumes that start is always within bounds, because all starts were once ends.
@@ -398,13 +444,11 @@ function wrapPoint(p) {
 }
 
 function getPathAngleIgnoreDirection(line) {
-    "use strict";
     var result = getPathAngle(line);
     return (result > 2) ? result - 3 : result;
 }
 
 function getPathAngle(line) {
-    "use strict";
     //  2    1
     //   \  /
     // 3 -  - 0
@@ -428,21 +472,18 @@ function getPathAngle(line) {
 }
 
 function setupTransform(player, ctx) {
-    "use strict";
     //center view
     ctx.scale(1, -1); //Invert y-axis
     ctx.translate(lcanvas.width / 2, -lcanvas.height / 2); //ok because lcanvas and rcanvas dimensions are equal
 
     //track the player
-    if (tracking) {
+    if (DEBUG_FLAGS.tracking) {
         var pos = player.screenCoord;
         ctx.translate(-pos.x, -pos.y);
     }
 }
 
 function renderBG(context) {
-    "use strict";
-
     var a;
     var w;
     context.save();
@@ -485,7 +526,6 @@ function renderBG(context) {
 function renderTriangleGrid(context) {
     // Fills screen with grid of trianges, rendering every triangle individually.
     //This is inefficient if just drawing lines, but might be useful for some effects.
-    "use strict";
     var row_max = lcanvas.height / tri_height -2;
     var col_max = lcanvas.width / half_edge_len -2;
     
@@ -534,7 +574,6 @@ function renderTriangleGrid(context) {
 }
 
 function renderRhombusBorder(context) {
-    "use strict";
     context.save();
     context.beginPath();
     context.lineWidth = 10;
@@ -555,7 +594,6 @@ function renderRhombusBorder(context) {
 }
 
 function renderTrianglesWithinRhombus(context) {
-    "use strict";
     context.save();
     context.beginPath();
     
@@ -599,24 +637,52 @@ function renderTrianglesWithinRhombus(context) {
 }
 
 function renderPlayer(player, context) {
-    "use strict";
-    context.beginPath();
     var pos = player.screenCoord;
-    context.arc(pos.x, pos.y, player.radius, 0, 2 * Math.PI, false);
+    context.translate(pos.x, pos.y);
+    //context.rotate(-Math.PI / 4);
+    context.rotate((4*Math.PI*player.trajectory - 3*Math.PI) / 12);
+    context.beginPath();
+    context.arc(0, 0, player.radius, 0, 2 * Math.PI, false);
+    context.lineTo(player.radius*1.5, player.radius*1.5);
+    context.lineTo(0, player.radius);
     context.stroke();
+    //context.rotate(Math.PI / 4);
+    context.rotate((-4*Math.PI*player.trajectory + 3*Math.PI) / 12);
+    context.translate(-pos.x, -pos.y);
+
     //@TEST CODE marks the start and end vertices that player is lerping on
-    context.beginPath();
-    pos = toScreenSpace(player.startVertex);
-    context.arc(pos.x, pos.y, player.radius-5, 0, 2 * Math.PI, false);
-    context.stroke();
-    context.beginPath();
-    pos = toScreenSpace(player.endVertex);
-    context.arc(pos.x, pos.y, player.radius-5, 0, 2 * Math.PI, false);
-    context.stroke();
+    if (DEBUG_FLAGS.path_markers) {
+        context.beginPath();
+        pos = toScreenSpace(player.startVertex);
+        context.arc(pos.x, pos.y, player.radius-5, 0, 2 * Math.PI, false);
+        context.stroke();
+        context.beginPath();
+        pos = toScreenSpace(player.endVertex);
+        context.arc(pos.x, pos.y, player.radius-5, 0, 2 * Math.PI, false);
+        context.stroke();
+    }
+}
+
+function renderParticles(context) {
+    particles.forEach(function (particle) {
+        context.fillStyle = particle.color;
+        if (particle.ttl < particle.tOut) {
+            context.globalAlpha = (particle.ttl / particle.tOut);
+            //radius increases to double over the tOut period.
+            particle.radius = particle.radius_orig * (2 - particle.ttl / particle.tOut);
+        } else if (particle.ttl > particle.ttl_orig - particle.tIn) {
+            let ratio = (particle.ttl - particle.ttl_orig) / -particle.tIn;
+            particle.radius = (ratio * 0.5 + 0.5) * particle.radius_orig;
+            context.globalAlpha = ratio;
+        }
+        context.beginPath();
+        context.arc(particle.x, particle.y, particle.radius, 0, 2 * Math.PI, false);
+        context.fill();
+    });
+    context.globalAlpha = 1.0;
 }
 
 function renderClear() {
-    "use strict";
     lctx.resetTransform();
     rctx.resetTransform();
 
@@ -627,7 +693,6 @@ function renderClear() {
 }
 
 function renderTiledGame() {
-
     /* hexagon tiling positions
     const positions = 
         [ [0, 0]
@@ -707,7 +772,6 @@ function renderCandies(ctx) {
 }
 
 function renderGame() {
-    "use strict";
     renderClear();
     setupTransform(p1, lctx);
     setupTransform(p2, rctx);
@@ -740,6 +804,8 @@ function renderGame() {
     renderCandies(lctx);
     renderWalls(rctx);
     renderWalls(lctx);
+    renderParticles(rctx);
+    renderParticles(lctx);
 }
 
 function step(time = 50) {
@@ -777,16 +843,15 @@ function event_mdown(mouseEvent) {
 }
 
 function event_keydown(event) {
-    "use strict";
     var c = String.fromCharCode(event.keyCode);
     console.log('keyCode ' + event.keyCode + ', char ' + c);
     //`t` toggles view tracking
     if (c === 'T') {
-        tracking = !tracking;
+        DEBUG_FLAGS.tracking = !DEBUG_FLAGS.tracking;
     }
     //`y` toggles world tiling
     else if (c === 'Y') {
-        tiling = !tiling;
+        DEBUG_FLAGS.tiling = !DEBUG_FLAGS.tiling;
     }
 
     //a=65; d=68; <=37; >=39;
@@ -873,6 +938,16 @@ function update_player(player, delta) {
     var msPerEdge = 835;
     //TODO: Should player position be updated here or in physics()?
     player.step(delta/msPerEdge);
+
+    //periodically poop particles
+    //This is done by time, although could be by distance instead...
+    player.trail_timer += delta;
+    if (player.trail_timer > player.trail_period) {
+        player.trail_timer = player.trail_timer % player.trail_period;
+        let breadcrumb = new Particle(player.screenCoord.x, player.screenCoord.y, 1000, player.radius / 2, 500, 500);
+        particles.push(breadcrumb);
+    }
+
     if (player.percent_travelled < 1) return; //Player is still on current line
     //Player has reached (or passed) endVertex
     
@@ -947,7 +1022,7 @@ function update_player(player, delta) {
         player.path = new Line(player.path.end.x, player.path.end.y, newEnd.x, newEnd.y);
         wrap_path(player.path);
     }
-*/
+    */
     Object.keys(player.effects).forEach(function (effect) {
         //effect is a key in the player.effects dictionary
         player.effects[effect] -= 1;
@@ -993,8 +1068,6 @@ function collide_candies(player) {
 }
 
 function physics(delta) {
-    "use strict";
-
     collide_candies(p1);
     collide_candies(p2);
 
@@ -1002,6 +1075,8 @@ function physics(delta) {
     update_player(p2, delta);
     
     update_walls(delta);
+
+    update_particles(delta);
 }
 
 function mainloop_init(timestamp) {
@@ -1010,13 +1085,15 @@ function mainloop_init(timestamp) {
 }
 
 function mainloop(timestamp) {
-    "use strict";
     var delta = timestamp - time_old;
     time_old = timestamp;
 
+    if (DEBUG_FLAGS.paused) {
+        delta = 0
+    }
     physics(delta);
 
-    if (tiling) {
+    if (DEBUG_FLAGS.tiling) {
         renderTiledGame();
     } else {
         renderGame();
