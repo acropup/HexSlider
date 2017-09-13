@@ -477,7 +477,7 @@ function getPathAngle(line) {
 function setupTransform(ctx) {
     //center view
     ctx.scale(1, -1); //Invert y-axis
-    ctx.translate(ctx.canvas.width / 2, -ctx.canvas.height / 2);
+    ctx.translate((ctx.canvas.width - (edge_len * (grid_max_x + grid_max_y / 2))) / 2, - (ctx.canvas.height + tri_height * grid_max_y) / 2);
     
     //track the player
     var player = ctx.targetPlayer;
@@ -620,16 +620,29 @@ function renderTrianglesWithinRhombus(context) {
             x3 += half_edge_len;
             if (uporient) {
                 //draw triangle with pointy top
-                context.moveTo(x1, y1);
+                /*context.moveTo(x1, y1);
                 context.lineTo(x2, y2);
                 context.lineTo(x3, y1);
                 context.lineTo(x1, y1);
+                drawArc(x1, y1, x2, y2, edge_len/transition_pct, context);
+                drawArc(x2, y2, x3, y1, edge_len/transition_pct, context);
+                drawArc(x3, y1, x1, y1, edge_len/transition_pct, context);*/
+                
+                drawArc(x2, y2, x1, y1, edge_len/transition_pct, context);
+                drawArc(x3, y1, x2, y2, edge_len/transition_pct, context);
+                drawArc(x1, y1, x3, y1, edge_len/transition_pct, context);
             } else {
                 //draw triangle with pointy bottom
-                context.moveTo(x1, y2);
+                /*context.moveTo(x1, y2);
                 context.lineTo(x3, y2);
                 context.lineTo(x2, y1);
                 context.lineTo(x1, y2);
+                drawArc(x1, y2, x3, y2, edge_len/transition_pct, context);
+                drawArc(x3, y2, x2, y1, edge_len/transition_pct, context);
+                drawArc(x2, y1, x1, y2, edge_len/transition_pct, context);*/
+                drawArc(x3, y2, x1, y2, edge_len/transition_pct, context);
+                drawArc(x2, y1, x3, y2, edge_len/transition_pct, context);
+                drawArc(x1, y2, x2, y1, edge_len/transition_pct, context);
             }
             uporient = !uporient;
         }
@@ -638,6 +651,38 @@ function renderTrianglesWithinRhombus(context) {
     
     context.stroke();
     context.restore();
+}
+
+function drawArc(x1, y1, x2, y2, radius, context) {
+    //midpoint
+    var mx = x1 + (x2-x1)/2;
+    var my = y1 + (y2-y1)/2;
+    //(px, py) is perpendicular vector with length equal to p2-p1
+    var px = y2-y1;
+    var py = x1-x2;
+    var d12_sq = px*px + py*py
+    var d12 = Math.sqrt(d12_sq);
+    var padj = Math.sqrt(radius*radius - d12_sq/4);
+    
+    
+    //(cx, cy) is center of arc
+    var cx = mx + px * padj / d12;
+    var cy = my + py * padj / d12;
+    var startAngle = Math.atan2(y1-cy, x1-cx);
+    var endAngle = Math.atan2(y2-cy, x2-cx);
+    
+    if (HILARITY_DEBUG) {
+        context.moveTo(mx, my);
+        context.lineTo(cx, cy);
+        context.arc(cx, cy, radius, startAngle, endAngle, true);
+        context.lineTo(cx, cy);
+    } else {
+        context.moveTo(x1, y1);
+        context.arc(cx, cy, radius, startAngle, endAngle, true);
+    }
+    
+    
+    
 }
 
 function renderPlayer(player, context) {
@@ -935,7 +980,17 @@ function collide_candies(player) {
     });
 }
 
+var HILARITY_DEBUG = true;
+var transition_pct = 1;
+var transition_rate = 0.0005;
+
 function physics(delta) {
+    
+
+    if (transition_pct >= 1.999)   transition_rate = -transition_rate;
+    if (transition_pct <= .01) transition_rate = -transition_rate;
+    transition_pct += delta*transition_rate;
+
     players.forEach(collide_candies);
     players.forEach(function (p) {
         update_player(p, delta);
