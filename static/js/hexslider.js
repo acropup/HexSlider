@@ -477,13 +477,15 @@ function getPathAngle(line) {
 function setupTransform(ctx) {
     //center view
     ctx.scale(1, -1); //Invert y-axis
-    ctx.translate((ctx.canvas.width - (edge_len * (grid_max_x + grid_max_y / 2))) / 2, - (ctx.canvas.height + tri_height * grid_max_y) / 2);
+    ctx.translate(ctx.canvas.width / 2, -ctx.canvas.height / 2);
     
     //track the player
     var player = ctx.targetPlayer;
     if (DEBUG_FLAGS.tracking && player) {
         var pos = player.screenCoord;
         ctx.translate(-pos.x, -pos.y);
+    } else { //Center the rhombus
+        ctx.translate(-edge_len * (grid_max_x + grid_max_y / 2) / 2, -tri_height * grid_max_y / 2);
     }
 }
 
