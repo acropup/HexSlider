@@ -990,9 +990,12 @@ var transition_rate = 0.0005;
 function physics(delta) {
     
     if (DEBUG_FLAGS.transition) {
-        if (transition_pct >= 1.999)   transition_rate = -transition_rate;
-        if (transition_pct <= .01) transition_rate = -transition_rate;
-        transition_pct += delta*transition_rate;
+        transition_pct += delta*transition_rate*Math.clamp(Math.log(transition_pct/2.2), -1, 0);
+        log(Math.log(transition_pct/2.2));
+        if (transition_pct <= 0 || transition_pct >= 1.999999) {
+            transition_rate = -transition_rate;
+            transition_pct = Math.clamp(transition_pct, .01, 1.999999);
+        }
     }
     
     players.forEach(collide_candies);
@@ -1027,5 +1030,8 @@ function mainloop(timestamp) {
     window.requestAnimationFrame(mainloop);
 }
 
+if (Math.clamp === undefined) {
+    Math.clamp = (num, min, max) => (num <= min) ? min : (num >= max) ? max : num;
+}
 //To save on typing
 var log = console.log;
