@@ -73,6 +73,8 @@ let DEBUG_FLAGS = {
     'tiling': false,
     'paused': false,
     'path_markers': true,
+    'transition': false,
+    'hilarious_debug': false,
 }
 
 var time_old = -1;
@@ -673,7 +675,7 @@ function drawArc(x1, y1, x2, y2, radius, context) {
     var startAngle = Math.atan2(y1-cy, x1-cx);
     var endAngle = Math.atan2(y2-cy, x2-cx);
     
-    if (HILARITY_DEBUG) {
+    if (DEBUG_FLAGS.hilarious_debug) {
         context.moveTo(mx, my);
         context.lineTo(cx, cy);
         context.arc(cx, cy, radius, startAngle, endAngle, true);
@@ -982,17 +984,17 @@ function collide_candies(player) {
     });
 }
 
-var HILARITY_DEBUG = true;
-var transition_pct = 1;
+var transition_pct = .01;
 var transition_rate = 0.0005;
 
 function physics(delta) {
     
-
-    if (transition_pct >= 1.999)   transition_rate = -transition_rate;
-    if (transition_pct <= .01) transition_rate = -transition_rate;
-    transition_pct += delta*transition_rate;
-
+    if (DEBUG_FLAGS.transition) {
+        if (transition_pct >= 1.999)   transition_rate = -transition_rate;
+        if (transition_pct <= .01) transition_rate = -transition_rate;
+        transition_pct += delta*transition_rate;
+    }
+    
     players.forEach(collide_candies);
     players.forEach(function (p) {
         update_player(p, delta);
