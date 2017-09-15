@@ -623,31 +623,33 @@ function renderTrianglesWithinRhombus(context) {
             x1 = x2;
             x2 = x3;
             x3 += half_edge_len;
+            
+            let d = toGridSpace(new Point(x2,(y1+y2)/2)).minus(context.targetPlayer.gridCoord);
+            d.x = Math.abs(d.x);
+            d.y = Math.abs(d.y);
+            d.x = d.x >= grid_max_x/2 ? d.x - grid_max_x : d.x;
+            d.y = d.y >= grid_max_y/2 ? d.y - grid_max_y : d.y;
+            d = 1.3- Math.sqrt(d.x*d.x + d.y*d.y);
+            d = d <= 0 ? 0.01 : d > 1 ? 1 : d;
+            
             if (uporient) {
                 //draw triangle with pointy top
                 /*context.moveTo(x1, y1);
                 context.lineTo(x2, y2);
                 context.lineTo(x3, y1);
-                context.lineTo(x1, y1);
-                drawArc(x1, y1, x2, y2, edge_len/transition_pct, context);
-                drawArc(x2, y2, x3, y1, edge_len/transition_pct, context);
-                drawArc(x3, y1, x1, y1, edge_len/transition_pct, context);*/
-                
-                drawArc(x2, y2, x1, y1, edge_len/transition_pct, context);
-                drawArc(x3, y1, x2, y2, edge_len/transition_pct, context);
-                drawArc(x1, y1, x3, y1, edge_len/transition_pct, context);
+                context.lineTo(x1, y1);*/
+                drawArc(x2, y2, x1, y1, edge_len/d, context);
+                drawArc(x3, y1, x2, y2, edge_len/d, context);
+                drawArc(x1, y1, x3, y1, edge_len/d, context);
             } else {
                 //draw triangle with pointy bottom
                 /*context.moveTo(x1, y2);
                 context.lineTo(x3, y2);
                 context.lineTo(x2, y1);
-                context.lineTo(x1, y2);
-                drawArc(x1, y2, x3, y2, edge_len/transition_pct, context);
-                drawArc(x3, y2, x2, y1, edge_len/transition_pct, context);
-                drawArc(x2, y1, x1, y2, edge_len/transition_pct, context);*/
-                drawArc(x3, y2, x1, y2, edge_len/transition_pct, context);
-                drawArc(x2, y1, x3, y2, edge_len/transition_pct, context);
-                drawArc(x1, y2, x2, y1, edge_len/transition_pct, context);
+                context.lineTo(x1, y2);*/
+                drawArc(x3, y2, x1, y2, edge_len/d, context);
+                drawArc(x2, y1, x3, y2, edge_len/d, context);
+                drawArc(x1, y2, x2, y1, edge_len/d, context);
             }
             uporient = !uporient;
         }
