@@ -487,7 +487,8 @@ function setupTransform(ctx) {
         var pos = player.screenCoord;
         ctx.translate(-pos.x, -pos.y);
     } else { //Center the rhombus
-        ctx.translate(-edge_len * (grid_max_x + grid_max_y / 2) / 2, -tri_height * grid_max_y / 2);
+        var mid = toScreenSpace(new Point(grid_max_x/2, grid_max_y/2));
+        ctx.translate(-mid.x, -mid.y);
     }
 }
 
@@ -843,12 +844,14 @@ function snap_to_tri_grid(point) {
 
 function event_mdown(mouseEvent) {
     testPoint = mouseEvent_to_world(mouseEvent, contexts[1].canvas);
-    if (DEBUG_FLAGS.tracking) {
-        if (mouseEvent.clientX >= contexts[1].canvas.offsetLeft) {
+    if (DEBUG_FLAGS.tracking) { //Center on tracked player
+        if (mouseEvent.clientX >= contexts[1].canvas.offsetLeft) { //Clicked right canvas
             testPoint = testPoint.plus(contexts[1].targetPlayer.screenCoord);
-        } else {
+        } else { //Clicked left canvas
             testPoint = testPoint.plus(contexts[0].targetPlayer.screenCoord);
         }
+    } else { //Center on middle of rhombus
+        testPoint = testPoint.minus(toScreenSpace(new Point(grid_max_x/2, grid_max_y/2)));
     }
     candies.push(new Candy(wrapPoint(toNearestGridPoint(testPoint))));
     snap_to_tri_grid(testPoint);
