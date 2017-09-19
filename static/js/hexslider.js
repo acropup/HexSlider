@@ -335,6 +335,7 @@ function Player() {
     //this.path = new Line(-2 * s, 0, 2 * s, 0);
     this.effects = {};
     this.effectsQueue = [];
+    this.universe = TriangleUniverse;
     this.setPos = function(newPos) {
         var tempPos = newPos;
         tempPos *= this.speedMultiplier;
@@ -368,26 +369,19 @@ function Player() {
     this.percent_travelled = 0;    //How far player is between startVertex (0) and endVertex (1)
     this.gridCoord;                //Current player coordinates, in grid space
     this.screenCoord;              //Current player coordinates, in screen space
+    //TODO: Decide if setTrajectory should even be here
     this.setTrajectory = function(newTrajectory) {
-        this.trajectory = newTrajectory;
-        this.startVertex = this.endVertex;
-        var trajectory_dx = [1, 0, -1, -1,  0,  1];
-        var trajectory_dy = [0, 1,  1,  0, -1, -1];
-        var dx = trajectory_dx[newTrajectory];
-        var dy = trajectory_dy[newTrajectory];
-        this.endVertex = this.endVertex.plus(new Point(dx, dy));
-        wrapPath(this.startVertex, this.endVertex);
-        this.step(-1); //Reset percent_travelled and set new coords
-        if (this == players[0]) log('player1 at ' + this.startVertex + ' screen ' + this.screenCoord);
+        //Call this when you're at a vertex and you know which direction the player should go
+        this.universe.setPlayerTrajectory(this, newTrajectory);
     };
     this.step = function(pct) {
         //Call this every frame to update player's position
-        //Step forward pct% of an edge length
-        this.percent_travelled += pct;
-        this.gridCoord = this.startVertex.lerp(this.endVertex, this.percent_travelled);
-        this.screenCoord = toScreenSpace(this.gridCoord);
-    }
-    
+        this.universe.playerStep(this, pct);
+    };
+    this.resolveVertex = function() {
+        //Call this when player has reached or passed a vertex
+        this.universe.onPlayerAtVertex(this);
+    };
 }
 
 function Particle(x, y, lifespan, radius, easeInTime, easeOutTime) {
@@ -501,7 +495,12 @@ function renderBG(context) {
     //@TEST CODE
     //renderTriangleGrid(context);
     renderRhombusBorder(context);
-    renderTrianglesWithinRhombus(context);
+    if (context.targetPlayer) {
+        context.targetPlayer.universe.renderBG(context);
+    } else {
+        TriangleUniverse.renderBG(context);
+    }
+    //renderTrianglesWithinRhombus(context);
     
     return;
     //Draw Hexagon
@@ -602,6 +601,253 @@ function renderRhombusBorder(context) {
     context.restore();
 }
 
+var TriangleUniverse = {
+    renderBG: function(context) {
+        context.save();
+        context.beginPath();
+        
+        var bottomLeft = toScreenSpace(new Point(0,0));
+        var y1 = 0;
+        var y2 = bottomLeft.y;
+        var xStart = bottomLeft.x;
+        for(var row = 0; row < grid_max_y; row++) {
+            //For a right-leaning rhombus, every row starts with an up-oriented triangle
+            //and ends with a down-oriented triangle
+            var uporient = true;
+            y1 = y2;
+            y2 = y1 + tri_height;
+            var x1 = xStart - half_edge_len;
+            var x2 = x1 + half_edge_len;
+            var x3 = x2 + half_edge_len;
+            for(var col = 0; col < 2*grid_max_x; col++) {
+                x1 = x2;
+                x2 = x3;
+                x3 += half_edge_len;
+                
+                if (uporient) {
+                    //draw triangle with pointy top
+                    context.moveTo(x1, y1);
+                    context.lineTo(x2, y2);
+                    context.lineTo(x3, y1);
+                    context.lineTo(x1, y1);
+                } else {
+                    //draw triangle with pointy bottom
+                    context.moveTo(x1, y2);
+                    context.lineTo(x3, y2);
+                    context.lineTo(x2, y1);
+                    context.lineTo(x1, y2);
+                }
+                uporient = !uporient;
+            }
+            xStart += half_edge_len
+        }
+        
+        context.stroke();
+        context.restore();
+    },
+    
+    playerStep: function(player, pct) {
+        //Step forward pct% of an edge length
+        player.percent_travelled += pct;
+        player.gridCoord = player.startVertex.lerp(player.endVertex, player.percent_travelled);
+        player.screenCoord = toScreenSpace(player.gridCoord);
+    },
+    
+    onPlayerAtVertex: function(player) {
+        //Player has reached (or passed) endVertex
+        
+        //Look for walls at this vertex
+        
+        // 4 2    1 2
+        //    \  /
+        //8 3 -  - 0  1
+        //    /  \
+        //16 4    5 32
+        var turnLeft = false;
+        var turnRight = false;
+        var ignoringParallel = false;
+        var pd = player.trajectory; // player direction
+        
+        var leftWall = (pd + 1) % 3; //This wall orientation # will bounce player left
+        var rightWall = (pd + 2) % 3;
+        var parallelWall = pd % 3;
+        var pos = wrapPoint(player.endVertex.clone());
+        walls.forEach(function (wall) {
+            if (pos.x == wall.x && pos.y == wall.y) {
+                var o = wall.orientation;
+                turnLeft |= (o == leftWall);
+                turnRight|= (o == rightWall);
+                ignoringParallel |= (o == parallelWall);
+            }
+        });
+        if (turnRight && turnLeft) {
+                //Turn around
+                log('turn around');
+                pd += 3;
+        } else if (turnRight) {
+            //Turn Right
+            log('turn right');
+            pd += 4; //Same as -2 in mod 6
+        } else if (turnLeft) {
+            //Turn Left
+            log('turn left');
+            pd += 2;
+        }
+        if (pd >= 6) pd -= 6;
+        player.setTrajectory(pd);
+    },
+    
+    setPlayerTrajectory: function(player, newTrajectory) {
+        player.trajectory = newTrajectory;
+        player.startVertex = player.endVertex;
+        var trajectory_dx = [1, 0, -1, -1,  0,  1];
+        var trajectory_dy = [0, 1,  1,  0, -1, -1];
+        var dx = trajectory_dx[newTrajectory];
+        var dy = trajectory_dy[newTrajectory];
+        player.endVertex = player.endVertex.plus(new Point(dx, dy));
+        wrapPath(player.startVertex, player.endVertex);
+        player.step(-1); //Reset percent_travelled and set new coords
+        //if (player == players[0]) log('player1 at ' + player.startVertex + ' screen ' + player.screenCoord);
+    },
+    
+    transitionTo: function(player, newUniverse) {
+        player.universe = newUniverse;
+    }
+};
+
+var FlowerUniverse = {
+    renderBG: function(context) {
+        context.save();
+        context.beginPath();
+        
+        var bottomLeft = toScreenSpace(new Point(0,0));
+        var y1 = 0;
+        var y2 = bottomLeft.y;
+        var xStart = bottomLeft.x;
+        for(var row = 0; row < grid_max_y; row++) {
+            //For a right-leaning rhombus, every row starts with an up-oriented triangle
+            //and ends with a down-oriented triangle
+            var uporient = true;
+            y1 = y2;
+            y2 = y1 + tri_height;
+            var x1 = xStart - half_edge_len;
+            var x2 = x1 + half_edge_len;
+            var x3 = x2 + half_edge_len;
+            for(var col = 0; col < 2*grid_max_x; col++) {
+                x1 = x2;
+                x2 = x3;
+                x3 += half_edge_len;
+                
+                if (DEBUG_FLAGS.transition) {
+                    var d = transition_pct;
+                } else {
+                    d = toGridSpace(new Point(x2,(y1+y2)/2)).minus(context.targetPlayer.gridCoord);
+                    d.x = Math.abs(d.x);
+                    d.y = Math.abs(d.y);
+                    d.x = d.x >= grid_max_x/2 ? d.x - grid_max_x : d.x;
+                    d.y = d.y >= grid_max_y/2 ? d.y - grid_max_y : d.y;
+                    d = 1.3- Math.sqrt(d.x*d.x + d.y*d.y);
+                    d = d <= 0 ? 0.01 : d > 1 ? 1 : d;
+                }
+                
+                if (uporient) {
+                    //draw triangle with pointy top
+                    /*context.moveTo(x1, y1);
+                    context.lineTo(x2, y2);
+                    context.lineTo(x3, y1);
+                    context.lineTo(x1, y1);*/
+                    
+                    drawArc(x2, y2, x1, y1, edge_len/d, context);
+                    drawArc(x3, y1, x2, y2, edge_len/d, context);
+                    drawArc(x1, y1, x3, y1, edge_len/d, context);
+                } else {
+                    //draw triangle with pointy bottom
+                    /*context.moveTo(x1, y2);
+                    context.lineTo(x3, y2);
+                    context.lineTo(x2, y1);
+                    context.lineTo(x1, y2);*/
+                    drawArc(x3, y2, x1, y2, edge_len/d, context);
+                    drawArc(x2, y1, x3, y2, edge_len/d, context);
+                    drawArc(x1, y2, x2, y1, edge_len/d, context);
+                }
+                uporient = !uporient;
+            }
+            xStart += half_edge_len
+        }
+        
+        context.stroke();
+        context.restore();
+    },
+    
+    playerStep: function(player, pct) {
+        //Step forward pct% of an edge length
+        player.percent_travelled += pct;
+        player.gridCoord = player.startVertex.lerp(player.endVertex, player.percent_travelled);
+        player.screenCoord = toScreenSpace(player.gridCoord);
+    },
+    
+    onPlayerAtVertex: function(player) {
+        //Player has reached (or passed) endVertex
+        
+        //Look for walls at this vertex
+        
+        // 4 2    1 2
+        //    \  /
+        //8 3 -  - 0  1
+        //    /  \
+        //16 4    5 32
+        var turnLeft = false;
+        var turnRight = false;
+        var ignoringParallel = false;
+        var pd = player.trajectory; // player direction
+        
+        var leftWall = (pd + 1) % 3; //This wall orientation # will bounce player left
+        var rightWall = (pd + 2) % 3;
+        var parallelWall = pd % 3;
+        var pos = wrapPoint(player.endVertex.clone());
+        walls.forEach(function (wall) {
+            if (pos.x == wall.x && pos.y == wall.y) {
+                var o = wall.orientation;
+                turnLeft |= (o == leftWall);
+                turnRight|= (o == rightWall);
+                ignoringParallel |= (o == parallelWall);
+            }
+        });
+        if (turnRight && turnLeft) {
+                //Turn around
+                log('turn around');
+                pd += 3;
+        } else if (turnRight) {
+            //Turn Right
+            log('turn right');
+            pd += 4; //Same as -2 in mod 6
+        } else if (turnLeft) {
+            //Turn Left
+            log('turn left');
+            pd += 2;
+        }
+        if (pd >= 6) pd -= 6;
+        player.setTrajectory(pd);
+    },
+    
+    setPlayerTrajectory: function(player, newTrajectory) {
+        player.trajectory = newTrajectory;
+        player.startVertex = player.endVertex;
+        var trajectory_dx = [1, 0, -1, -1,  0,  1];
+        var trajectory_dy = [0, 1,  1,  0, -1, -1];
+        var dx = trajectory_dx[newTrajectory];
+        var dy = trajectory_dy[newTrajectory];
+        player.endVertex = player.endVertex.plus(new Point(dx, dy));
+        wrapPath(player.startVertex, player.endVertex);
+        player.step(-1); //Reset percent_travelled and set new coords
+        //if (player == players[0]) log('player1 at ' + player.startVertex + ' screen ' + player.screenCoord);
+    },
+    
+    transitionTo: function(player, newUniverse) {
+        player.universe = newUniverse;
+    }
+};
+    
 function renderTrianglesWithinRhombus(context) {
     context.save();
     context.beginPath();
@@ -907,49 +1153,10 @@ function update_player(player, delta) {
     }
 
     if (player.percent_travelled < 1) return; //Player is still on current line
+    
     //Player has reached (or passed) endVertex
+    player.resolveVertex();
     
-    //Look for walls at this vertex
-    
-    // 4 2    1 2
-    //    \  /
-    //8 3 -  - 0  1
-    //    /  \
-    //16 4    5 32
-    var wallAngles = 0;
-    var turnLeft = false;
-    var turnRight = false;
-    var ignoringParallel = false;
-    var pd = player.trajectory; // player direction
-    
-    var leftWall = (pd + 1) % 3; //This wall orientation # will bounce player left
-    var rightWall = (pd + 2) % 3;
-    var parallelWall = pd % 3;
-    var pos = wrapPoint(player.endVertex.clone());
-    walls.forEach(function (wall) {
-        if (pos.x == wall.x && pos.y == wall.y) {
-            var o = wall.orientation;
-            turnLeft |= (o == leftWall);
-            turnRight|= (o == rightWall);
-            ignoringParallel |= (o == parallelWall);
-            
-        }
-    });
-    if (turnRight && turnLeft) {
-            //Turn around
-            log('turn around');
-            pd += 3;
-    } else if (turnRight) {
-        //Turn Right
-        log('turn right');
-        pd += 4; //Same as -2 in mod 6
-    } else if (turnLeft) {
-        //Turn Left
-        log('turn left');
-        pd += 2;
-    }
-    if (pd >= 6) pd -= 6;
-    player.setTrajectory(pd);
     Object.keys(player.effects).forEach(function (effect) {
         //effect is a key in the player.effects dictionary
         player.effects[effect] -= 1;
@@ -988,6 +1195,8 @@ function collide_candies(player) {
         //TODO make this test better. maybe only test when player crosses a vertex
         if ((pos.x - candy.x) * (pos.x - candy.x) + (pos.y - candy.y) * (pos.y - candy.y) < .01) {
             player.effectsQueue.push(candy.effect);
+            var newUniverse = (player.universe === TriangleUniverse) ? FlowerUniverse : TriangleUniverse;
+            player.universe.transitionTo(player, newUniverse);
             return false;
         }
         return true;
