@@ -73,7 +73,6 @@ let DEBUG_FLAGS = {
     'tiling': false,
     'paused': false,
     'path_markers': true,
-    'transition': false,
     'hilarious_debug': false,
 }
 
@@ -487,8 +486,6 @@ function setupTransform(ctx) {
 }
 
 function renderBG(context) {
-    var a;
-    var w;
     context.save();
     context.beginPath();
     
@@ -500,9 +497,10 @@ function renderBG(context) {
     } else {
         TriangleUniverse.renderBG(context);
     }
-    //renderTrianglesWithinRhombus(context);
     
     return;
+    var a;
+    var w;
     //Draw Hexagon
     context.lineWidth = 1;
     //draw horizontal lines
@@ -524,57 +522,6 @@ function renderBG(context) {
         w = (r - Math.abs(a)) / r * s + s;
         context.moveTo(-w, a);
         context.lineTo( w, a);
-    }
-    
-    context.stroke();
-    context.restore();
-}
-
-//@EXPERIMENTAL
-function renderTriangleGrid(context) {
-    // Fills screen with grid of trianges, rendering every triangle individually.
-    //This is inefficient if just drawing lines, but might be useful for some effects.
-    var row_max = context.canvas.height / tri_height -2;
-    var col_max = context.canvas.width / half_edge_len -2;
-    
-    context.save();
-    
-    context.translate(-edge_len * Math.round(context.canvas.width / (2 * edge_len)),
-                      -tri_height * Math.floor(context.canvas.height / (2 * tri_height)));
-    var start_orient = Math.floor(context.canvas.height / (2 * tri_height)) % 2;
-    context.beginPath();
-    context.lineWidth = 1;
-    
-    var y1 = 0;
-    var y2 = 0;
-    for(var tri_row = 0; tri_row < row_max; tri_row++) {
-        var uporient = tri_row & 1;
-        if (!start_orient) uporient = !uporient;
-        y1 = y2;
-        y2 += tri_height;
-
-        var x1 = -half_edge_len;
-        var x2 = x1 + half_edge_len;
-        var x3 = x2 + half_edge_len;
-        for(var tri_col = 0; tri_col < col_max; tri_col++) {
-            x1 = x2;
-            x2 = x3;
-            x3 += half_edge_len;
-            if (uporient) {
-                //draw triangle with pointy top
-                context.moveTo(x1, y1);
-                context.lineTo(x2, y2);
-                context.lineTo(x3, y1);
-                context.lineTo(x1, y1);
-            } else {
-                //draw triangle with pointy bottom
-                context.moveTo(x1, y2);
-                context.lineTo(x3, y2);
-                context.lineTo(x2, y1);
-                context.lineTo(x1, y2);
-            }
-            uporient = !uporient;
-        }
     }
     
     context.stroke();
@@ -716,7 +663,7 @@ var TriangleUniverse = {
 };
 
 var FlowerUniverse = {
-    renderBG: function(context) {
+    renderBG: function(context, radius = edge_len) {
         context.save();
         context.beginPath();
         
@@ -738,37 +685,14 @@ var FlowerUniverse = {
                 x2 = x3;
                 x3 += half_edge_len;
                 
-                if (DEBUG_FLAGS.transition) {
-                    var d = transition_pct;
-                } else {
-                    d = toGridSpace(new Point(x2,(y1+y2)/2)).minus(context.targetPlayer.gridCoord);
-                    d.x = Math.abs(d.x);
-                    d.y = Math.abs(d.y);
-                    d.x = d.x >= grid_max_x/2 ? d.x - grid_max_x : d.x;
-                    d.y = d.y >= grid_max_y/2 ? d.y - grid_max_y : d.y;
-                    d = 1.3- Math.sqrt(d.x*d.x + d.y*d.y);
-                    d = d <= 0 ? 0.01 : d > 1 ? 1 : d;
-                }
-                
                 if (uporient) {
-                    //draw triangle with pointy top
-                    /*context.moveTo(x1, y1);
-                    context.lineTo(x2, y2);
-                    context.lineTo(x3, y1);
-                    context.lineTo(x1, y1);*/
-                    
-                    drawArc(x2, y2, x1, y1, edge_len/d, context);
-                    drawArc(x3, y1, x2, y2, edge_len/d, context);
-                    drawArc(x1, y1, x3, y1, edge_len/d, context);
+                    drawArc(x2, y2, x1, y1, radius, context);
+                    drawArc(x3, y1, x2, y2, radius, context);
+                    drawArc(x1, y1, x3, y1, radius, context);
                 } else {
-                    //draw triangle with pointy bottom
-                    /*context.moveTo(x1, y2);
-                    context.lineTo(x3, y2);
-                    context.lineTo(x2, y1);
-                    context.lineTo(x1, y2);*/
-                    drawArc(x3, y2, x1, y2, edge_len/d, context);
-                    drawArc(x2, y1, x3, y2, edge_len/d, context);
-                    drawArc(x1, y2, x2, y1, edge_len/d, context);
+                    drawArc(x3, y2, x1, y2, radius, context);
+                    drawArc(x2, y1, x3, y2, radius, context);
+                    drawArc(x1, y2, x2, y1, radius, context);
                 }
                 uporient = !uporient;
             }
@@ -847,69 +771,6 @@ var FlowerUniverse = {
         player.universe = newUniverse;
     }
 };
-    
-function renderTrianglesWithinRhombus(context) {
-    context.save();
-    context.beginPath();
-    
-    var bottomLeft = toScreenSpace(new Point(0,0));
-    var y1 = 0;
-    var y2 = bottomLeft.y;
-    var xStart = bottomLeft.x;
-    for(var row = 0; row < grid_max_y; row++) {
-        //For a right-leaning rhombus, every row starts with an up-oriented triangle
-        //and ends with a down-oriented triangle
-        var uporient = true;
-        y1 = y2;
-        y2 = y1 + tri_height;
-        var x1 = xStart - half_edge_len;
-        var x2 = x1 + half_edge_len;
-        var x3 = x2 + half_edge_len;
-        for(var col = 0; col < 2*grid_max_x; col++) {
-            x1 = x2;
-            x2 = x3;
-            x3 += half_edge_len;
-            
-            if (DEBUG_FLAGS.transition) {
-                var d = transition_pct;
-            } else {
-                d = toGridSpace(new Point(x2,(y1+y2)/2)).minus(context.targetPlayer.gridCoord);
-                d.x = Math.abs(d.x);
-                d.y = Math.abs(d.y);
-                d.x = d.x >= grid_max_x/2 ? d.x - grid_max_x : d.x;
-                d.y = d.y >= grid_max_y/2 ? d.y - grid_max_y : d.y;
-                d = 1.3- Math.sqrt(d.x*d.x + d.y*d.y);
-                d = d <= 0 ? 0.01 : d > 1 ? 1 : d;
-            }
-            
-            if (uporient) {
-                //draw triangle with pointy top
-                /*context.moveTo(x1, y1);
-                context.lineTo(x2, y2);
-                context.lineTo(x3, y1);
-                context.lineTo(x1, y1);*/
-                
-                drawArc(x2, y2, x1, y1, edge_len/d, context);
-                drawArc(x3, y1, x2, y2, edge_len/d, context);
-                drawArc(x1, y1, x3, y1, edge_len/d, context);
-            } else {
-                //draw triangle with pointy bottom
-                /*context.moveTo(x1, y2);
-                context.lineTo(x3, y2);
-                context.lineTo(x2, y1);
-                context.lineTo(x1, y2);*/
-                drawArc(x3, y2, x1, y2, edge_len/d, context);
-                drawArc(x2, y1, x3, y2, edge_len/d, context);
-                drawArc(x1, y2, x2, y1, edge_len/d, context);
-            }
-            uporient = !uporient;
-        }
-        xStart += half_edge_len
-    }
-    
-    context.stroke();
-    context.restore();
-}
 
 function drawArc(x1, y1, x2, y2, radius, context) {
     //midpoint
@@ -938,9 +799,6 @@ function drawArc(x1, y1, x2, y2, radius, context) {
         context.moveTo(x1, y1);
         context.arc(cx, cy, radius, startAngle, endAngle, true);
     }
-    
-    
-    
 }
 
 function renderPlayer(player, context) {
@@ -1203,20 +1061,7 @@ function collide_candies(player) {
     });
 }
 
-var transition_pct = .01;
-var transition_rate = 0.0005;
-
 function physics(delta) {
-    
-    if (DEBUG_FLAGS.transition) {
-        transition_pct += delta*transition_rate*Math.clamp(Math.log(transition_pct/2.2), -1, 0);
-        log(Math.log(transition_pct/2.2));
-        if (transition_pct <= 0 || transition_pct >= 1.999999) {
-            transition_rate = -transition_rate;
-            transition_pct = Math.clamp(transition_pct, .01, 1.999999);
-        }
-    }
-    
     players.forEach(collide_candies);
     players.forEach(function (p) {
         update_player(p, delta);
