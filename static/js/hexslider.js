@@ -73,6 +73,7 @@ let DEBUG_FLAGS = {
     'tiling': false,
     'paused': false,
     'path_markers': true,
+    'world_border': true,
     'hilarious_debug': false,
 }
 
@@ -381,6 +382,24 @@ function Player() {
         //Call this when player has reached or passed a vertex
         this.universe.onPlayerAtVertex(this);
     };
+    this.transitionToUniverse = function(uni) {
+        this.toUniverse = uni;
+        this.universeTransitionPct = 0;
+        uni.transitionTo(this);
+    };
+}
+
+function getTrajectoryVector(t) {
+    //  2    1
+    //   \  /
+    // 3 -  - 0
+    //   /  \
+    //  4    5
+    var trajectory_dx = [1, 0, -1, -1,  0,  1];
+    var trajectory_dy = [0, 1,  1,  0, -1, -1];
+    var dx = trajectory_dx[t];
+    var dy = trajectory_dy[t];
+    return new Point(dx, dy);
 }
 
 function Particle(x, y, lifespan, radius, easeInTime, easeOutTime) {
@@ -489,12 +508,17 @@ function renderBG(context) {
     context.save();
     context.beginPath();
     
-    //@TEST CODE
-    //renderTriangleGrid(context);
-    renderRhombusBorder(context);
-    if (context.targetPlayer) {
-        context.targetPlayer.universe.renderBG(context);
-    } else {
+    if (DEBUG_FLAGS.world_border) {
+        renderRhombusBorder(context);
+    }
+    var player = context.targetPlayer;
+    if (player) {
+        if (player.toUniverse) {
+            player.universe.renderBGTransition(context, player.toUniverse, player.universeTransitionPct);
+        } else {
+            player.universe.renderBG(context);
+        }
+    } else { //Default rendering for a context with no player associated
         TriangleUniverse.renderBG(context);
     }
     
@@ -593,6 +617,14 @@ var TriangleUniverse = {
         context.restore();
     },
     
+    renderBGTransition: function(context, toUniverse, pct) {
+        if (toUniverse === FlowerUniverse) {
+            toUniverse.renderBGTransition(context, this, 1-pct);
+        } else {
+            this.renderBG(context);
+        }
+    },
+    
     playerStep: function(player, pct) {
         //Step forward pct% of an edge length
         player.percent_travelled += pct;
@@ -647,18 +679,15 @@ var TriangleUniverse = {
     setPlayerTrajectory: function(player, newTrajectory) {
         player.trajectory = newTrajectory;
         player.startVertex = player.endVertex;
-        var trajectory_dx = [1, 0, -1, -1,  0,  1];
-        var trajectory_dy = [0, 1,  1,  0, -1, -1];
-        var dx = trajectory_dx[newTrajectory];
-        var dy = trajectory_dy[newTrajectory];
-        player.endVertex = player.endVertex.plus(new Point(dx, dy));
+        var traj = getTrajectoryVector(newTrajectory);
+        player.endVertex = player.endVertex.plus(traj);
         wrapPath(player.startVertex, player.endVertex);
         player.step(-1); //Reset percent_travelled and set new coords
         //if (player == players[0]) log('player1 at ' + player.startVertex + ' screen ' + player.screenCoord);
     },
     
-    transitionTo: function(player, newUniverse) {
-        player.universe = newUniverse;
+    transitionTo: function(player) {
+        log("Player transitioning to Triangle Universe.");
     }
 };
 
@@ -703,6 +732,15 @@ var FlowerUniverse = {
         context.restore();
     },
     
+    renderBGTransition: function(context, toUniverse, pct) {
+        if (toUniverse === TriangleUniverse) {
+            var radius = edge_len / Math.clamp(1 - pct, .01, 1);
+            this.renderBG(context, radius);
+        } else {
+            this.renderBG(context);
+        }
+    },
+    
     playerStep: function(player, pct) {
         //Step forward pct% of an edge length
         player.percent_travelled += pct;
@@ -757,18 +795,20 @@ var FlowerUniverse = {
     setPlayerTrajectory: function(player, newTrajectory) {
         player.trajectory = newTrajectory;
         player.startVertex = player.endVertex;
-        var trajectory_dx = [1, 0, -1, -1,  0,  1];
-        var trajectory_dy = [0, 1,  1,  0, -1, -1];
-        var dx = trajectory_dx[newTrajectory];
-        var dy = trajectory_dy[newTrajectory];
-        player.endVertex = player.endVertex.plus(new Point(dx, dy));
+        var traj = getTrajectoryVector(newTrajectory);
+        player.endVertex = player.endVertex.plus(traj);
         wrapPath(player.startVertex, player.endVertex);
         player.step(-1); //Reset percent_travelled and set new coords
         //if (player == players[0]) log('player1 at ' + player.startVertex + ' screen ' + player.screenCoord);
     },
     
-    transitionTo: function(player, newUniverse) {
-        player.universe = newUniverse;
+    transitionTo: function(player) {
+        log("Player transitioning to Flower Universe.");
+        //Choose an orbit vertex to the right or left
+        //ORRRR maybe just have a boolean for clockwise or CCW rotation
+        //Arbitrarily turn left for now
+        var traj = getTrajectoryVector(player.trajectory + 2);
+        player.orbitVertex = wrapPoint(player.startVertex.plus(traj));
     }
 };
 
@@ -1053,8 +1093,14 @@ function collide_candies(player) {
         //TODO make this test better. maybe only test when player crosses a vertex
         if ((pos.x - candy.x) * (pos.x - candy.x) + (pos.y - candy.y) * (pos.y - candy.y) < .01) {
             player.effectsQueue.push(candy.effect);
+            
+            if (player.universeTransitionPct > 0.9) { //HACK because we are eating candies before reaching the vertex
+                player.universe = player.toUniverse;
+                player.toUniverse = undefined; //Setting to undefined is faster than delete
+                player.universeTransitionPct = undefined;
+            }
             var newUniverse = (player.universe === TriangleUniverse) ? FlowerUniverse : TriangleUniverse;
-            player.universe.transitionTo(player, newUniverse);
+            player.transitionToUniverse(newUniverse);
             return false;
         }
         return true;
@@ -1064,6 +1110,15 @@ function collide_candies(player) {
 function physics(delta) {
     players.forEach(collide_candies);
     players.forEach(function (p) {
+        if (p.toUniverse) { //If player is transitioning to new universe
+            //TODO: render never happens at universeTransitionPct == 0, is this a bad thing?
+            p.universeTransitionPct += delta / 835; //TODO: Refactor. 835 is the msPerEdge value in update_player
+            if (p.universeTransitionPct >= 1) { //Done transitioning to new universe
+                p.universe = p.toUniverse;
+                p.toUniverse = undefined; //Setting to undefined is faster than delete
+                p.universeTransitionPct = undefined;
+            }
+        }
         update_player(p, delta);
     });
     
