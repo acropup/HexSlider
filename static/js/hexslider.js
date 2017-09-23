@@ -572,7 +572,7 @@ function renderRhombusBorder(context) {
     context.restore();
 }
 
-var TriangleUniverse = {
+const TriangleUniverse = {
     renderBG: function(context) {
         context.save();
         context.beginPath();
@@ -690,8 +690,9 @@ var TriangleUniverse = {
         log("Player transitioning to Triangle Universe.");
     }
 };
+Object.freeze(TriangleUniverse);
 
-var FlowerUniverse = {
+const FlowerUniverse = {
     renderBG: function(context, radius = edge_len) {
         context.save();
         context.beginPath();
@@ -811,6 +812,7 @@ var FlowerUniverse = {
         player.orbitVertex = wrapPoint(player.startVertex.plus(traj));
     }
 };
+Object.freeze(FlowerUniverse);
 
 function drawArc(x1, y1, x2, y2, radius, context) {
     //midpoint
