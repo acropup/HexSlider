@@ -68,13 +68,14 @@ const e = 100; //triangle height; should evenly divide `r`
 const s = r * Math.tan(Math.PI/6); //half of a side length (for larger game hexagon)
 const t = 2*s*e / r; //triangle edge length
 
+//Note: Optional keybinding char and underscore are chopped off during init_debug_flags()
 let DEBUG_FLAGS = {
-    'tracking': false,
-    'tiling': false,
-    'paused': false,
-    'path_markers': true,
-    'world_border': true,
-    'hilarious_debug': false,
+    't_tracking': false,
+    'y_tiling': false,
+    'p_paused': false,
+    'm_path_markers': true,
+    'b_world_border': true,
+    'h_hilarious_debug': false,
 }
 
 var time_old = -1;
@@ -182,7 +183,24 @@ function init() {
 }
 
 function init_debug_flags() {
-    let box = document.getElementById("flaglist")
+    //Extract keybindings
+    let keybinds = {};
+    let dbgFlags = {};
+    Object.keys(DEBUG_FLAGS).forEach(function (f) {
+        let dbgName = f;
+        if (f.length > 2 && f[1] == '_') {
+            dbgName = dbgName.substr(2);
+            dbgFlags[dbgName] = DEBUG_FLAGS[f];
+            keybinds[dbgName] = f[0].toUpperCase();
+        } else {
+            dbgFlags[dbgName] = DEBUG_FLAGS[f];
+        }
+    });
+    //Overwrite DEBUG_FLAGS with keybindings removed from names
+    DEBUG_FLAGS = dbgFlags;
+    
+    //Create html checkboxes to interact with DEBUG_FLAGS
+    let box = document.getElementById("flaglist");
     Object.keys(DEBUG_FLAGS).forEach(function (f) {
         let div = document.createElement("div");
         let label = document.createElement("label");
@@ -195,10 +213,16 @@ function init_debug_flags() {
         }
         div.className = "item";
         label.appendChild(input);
-        label.appendChild(document.createTextNode(f));
+        if (keybinds[f]) {
+            label.appendChild(document.createTextNode('(' + keybinds[f] + ') ' + f));
+        } else {
+            label.appendChild(document.createTextNode(f));
+        }
         div.appendChild(label);
         box.appendChild(div);
     });
+    
+    DEBUG_FLAGS.keybinds = keybinds;
 }
 
 function init_board() {
@@ -1078,20 +1102,20 @@ function event_mdown(mouseEvent) {
 
 function event_keydown(event) {
     var c = String.fromCharCode(event.keyCode);
-    console.log('keyCode ' + event.keyCode + ', char ' + c);
-    //`t` toggles view tracking
-    if (c === 'T') {
-        DEBUG_FLAGS.tracking = !DEBUG_FLAGS.tracking;
-    }
-    //`y` toggles world tiling
-    else if (c === 'Y') {
-        DEBUG_FLAGS.tiling = !DEBUG_FLAGS.tiling;
-    }
-    //Check if players handle keypress
-    else {
-        for(let i = 0; i < players.length; i++) {
-            if (players[i].keyPress(event.keyCode)) break;
+    //console.log('keyCode ' + event.keyCode + ', char ' + c);
+    
+    //Check if debug flags handle keypress
+    Object.keys(DEBUG_FLAGS.keybinds).forEach(function (k) {
+        if (c === DEBUG_FLAGS.keybinds[k]) {        
+            let chkbox = document.getElementById(k);
+            chkbox.checked = !chkbox.checked;
+            chkbox.onchange();
         }
+    });
+    
+    //Check if players handle keypress
+    for(let i = 0; i < players.length; i++) {
+        if (players[i].keyPress(event.keyCode)) break;
     }
 }
 
