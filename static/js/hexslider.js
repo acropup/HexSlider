@@ -142,10 +142,12 @@ function init() {
     var p1 = new Player();
     p1.keyLeft = 'A'.charCodeAt();  //a=65; d=68;
     p1.keyRight = 'D'.charCodeAt();
+    p1.keyForward = 'W'.charCodeAt();
     p1.color = "#0000FF";
     var p2 = new Player();
     p2.keyLeft = KEY_CODE.Arrow_Left;  //<=37; >=39;
     p2.keyRight = KEY_CODE.Arrow_Right;
+    p2.keyForward = KEY_CODE.Arrow_Up;
     p2.color = "#FF0000";
     p_default = new Player();
     p1.endVertex = new Point(-2, 0);
@@ -327,6 +329,7 @@ function Player() {
     this.radius = 10;
     this.keyLeft;
     this.keyRight;
+    this.keyForward;
     this.color = 0;
     this.speedMultiplier = 12.0;
     this.speedOffset = 0.0;
@@ -352,10 +355,15 @@ function Player() {
         var direction = 0;
         if (key === this.keyLeft) direction = 1;
         if (key === this.keyRight) direction = -1;
+        if (key === this.keyForward) direction = 2;
         if (!direction) return false; //Keypress not handled
-        
-        //Path angle is either +1 to left or -1 to right. +2 is like -1 but without risk of going negative
-        var pa = (this.trajectory + ((direction == 1) ? 1 : 2)) % 3;
+        var pa;
+        if (direction == 2) {
+            pa = this.trajectory % 3;
+        } else {
+            //Path angle is either +1 to left or -1 to right. +2 is like -1 but without risk of going negative
+            pa = (this.trajectory + ((direction == 1) ? 1 : 2)) % 3;
+        }
         //Wrap in case endVertex is on grid_max
         var wp = wrapPoint(this.endVertex.clone());
         walls.push(new Wall(wp, pa));
@@ -389,7 +397,7 @@ function Player() {
     };
 }
 
-function getTrajectoryVector(t) {
+function trajectoryToVector(t) {
     //  2    1
     //   \  /
     // 3 -  - 0
@@ -400,6 +408,17 @@ function getTrajectoryVector(t) {
     var dx = trajectory_dx[t];
     var dy = trajectory_dy[t];
     return new Point(dx, dy);
+}
+
+function vectorToTrajectory(v) {
+    //v should be a Point of which x and y are -1, 0, or 1, and x and y are not equal
+    var trajectory_dx = [1, 0, -1, -1,  0,  1];
+    var trajectory_dy = [0, 1,  1,  0, -1, -1];
+    
+    for (var i = 0; i < 6; i++) {
+        if (trajectory_dx[i] == v.x && trajectory_dy[i] == v.y)
+            return i;
+    }
 }
 
 function Particle(x, y, lifespan, radius, easeInTime, easeOutTime) {
@@ -458,6 +477,16 @@ function wrapPoint(p) {
     while (p.y < 0) p.y += grid_max_y;
     while (p.y >= grid_max_y) p.y -= grid_max_y;
     return p;
+}
+
+function wrapClosestTo(p, target) {
+    //In grid space. Return wrapped point p closest to target. Might be outside of rhombus boundary.
+    var pWrap = p.clone();
+    while (pWrap.x - target.x > grid_max_x/2) pWrap.x -= grid_max_x;
+    while (pWrap.x - target.x < -grid_max_x/2) pWrap.x += grid_max_x;
+    while (pWrap.y - target.y > grid_max_y/2) pWrap.y -= grid_max_y;
+    while (pWrap.y - target.y < -grid_max_y/2) pWrap.y += grid_max_y;
+    return pWrap;
 }
 
 function getPathAngleIgnoreDirection(line) {
@@ -679,7 +708,7 @@ const TriangleUniverse = {
     setPlayerTrajectory: function(player, newTrajectory) {
         player.trajectory = newTrajectory;
         player.startVertex = player.endVertex;
-        var traj = getTrajectoryVector(newTrajectory);
+        var traj = trajectoryToVector(newTrajectory);
         player.endVertex = player.endVertex.plus(traj);
         wrapPath(player.startVertex, player.endVertex);
         player.step(-1); //Reset percent_travelled and set new coords
@@ -743,10 +772,21 @@ const FlowerUniverse = {
     },
     
     playerStep: function(player, pct) {
-        //Step forward pct% of an edge length
+        //Step forward pct% over a 60deg arc
         player.percent_travelled += pct;
-        player.gridCoord = player.startVertex.lerp(player.endVertex, player.percent_travelled);
-        player.screenCoord = toScreenSpace(player.gridCoord);
+        var orbitVertex = wrapClosestTo(player.orbitVertex, player.startVertex);
+        var startTraj = vectorToTrajectory(player.startVertex.minus(orbitVertex));
+        var endTraj   = vectorToTrajectory(player.endVertex.minus(orbitVertex));
+        //0deg and 360deg are equivalent, so make sure we use the right value to lerp between
+        if (startTraj == 0 && endTraj == 5) startTraj = 6;
+        if (startTraj == 5 && endTraj == 0) endTraj = 6;
+            
+        var lerpRadians = Math.PI / 3 * (startTraj + (endTraj - startTraj) * player.percent_travelled);
+        var s = toScreenSpace(orbitVertex);
+        s.x += Math.cos(lerpRadians) * edge_len;
+        s.y += Math.sin(lerpRadians) * edge_len;
+        player.screenCoord = s;
+        player.gridCoord = wrapPoint(toGridSpace(player.screenCoord));
     },
     
     onPlayerAtVertex: function(player) {
@@ -754,14 +794,14 @@ const FlowerUniverse = {
         
         //Look for walls at this vertex
         
-        // 4 2    1 2
+        //   2    1
         //    \  /
-        //8 3 -  - 0  1
+        //  3 -  - 0
         //    /  \
-        //16 4    5 32
+        //   4    5
         var turnLeft = false;
         var turnRight = false;
-        var ignoringParallel = false;
+        var turnParallel = false;
         var pd = player.trajectory; // player direction
         
         var leftWall = (pd + 1) % 3; //This wall orientation # will bounce player left
@@ -773,13 +813,14 @@ const FlowerUniverse = {
                 var o = wall.orientation;
                 turnLeft |= (o == leftWall);
                 turnRight|= (o == rightWall);
-                ignoringParallel |= (o == parallelWall);
+                turnParallel |= (o == parallelWall);
             }
         });
         if (turnRight && turnLeft) {
-                //Turn around
-                log('turn around');
-                pd += 3;
+            //Turn around
+            log('turn around');
+            player.orbitDirection = -player.orbitDirection; //1=ccw, -1=cw
+            pd += 3;
         } else if (turnRight) {
             //Turn Right
             log('turn right');
@@ -788,17 +829,32 @@ const FlowerUniverse = {
             //Turn Left
             log('turn left');
             pd += 2;
+        } else if (turnParallel) {
+            //Go straight
+            log('go straight');
+        } else {
+            //Continue orbiting
+            pd += player.orbitDirection;
         }
         if (pd >= 6) pd -= 6;
         player.setTrajectory(pd);
+        //player.setTrajectory((player.trajectory + player.orbitDirection + 6) % 6);
     },
     
     setPlayerTrajectory: function(player, newTrajectory) {
         player.trajectory = newTrajectory;
         player.startVertex = player.endVertex;
-        var traj = getTrajectoryVector(newTrajectory);
+        var traj = trajectoryToVector(newTrajectory);
         player.endVertex = player.endVertex.plus(traj);
         wrapPath(player.startVertex, player.endVertex);
+        
+        //Compute orbitVertex
+        var t = player.trajectory + player.orbitDirection;
+        if (t < 0) t += 6;
+        if (t > 5) t -= 6;
+        var tv = trajectoryToVector(t);
+        player.orbitVertex = wrapPoint(player.startVertex.plus(tv));
+        
         player.step(-1); //Reset percent_travelled and set new coords
         //if (player == players[0]) log('player1 at ' + player.startVertex + ' screen ' + player.screenCoord);
     },
@@ -808,8 +864,12 @@ const FlowerUniverse = {
         //Choose an orbit vertex to the right or left
         //ORRRR maybe just have a boolean for clockwise or CCW rotation
         //Arbitrarily turn left for now
-        var traj = getTrajectoryVector(player.trajectory + 2);
-        player.orbitVertex = wrapPoint(player.startVertex.plus(traj));
+        player.orbitDirection = 1; //1=ccw, -1=cw
+        var t = player.trajectory + player.orbitDirection;
+        if (t < 0) t += 6;
+        if (t > 5) t -= 6;
+        var tv = trajectoryToVector(t);
+        player.orbitVertex = wrapPoint(player.endVertex.plus(tv));
     }
 };
 Object.freeze(FlowerUniverse);
@@ -868,6 +928,12 @@ function renderPlayer(player, context) {
         pos = toScreenSpace(player.endVertex);
         context.arc(pos.x, pos.y, player.radius-5, 0, 2 * Math.PI, false);
         context.stroke();
+        if (player.orbitVertex) {
+            context.beginPath();
+            pos = toScreenSpace(player.orbitVertex);
+            context.arc(pos.x, pos.y, player.radius*2, 0, 2 * Math.PI, false);
+            context.stroke();
+        }
     }
 }
 
